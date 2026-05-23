@@ -1,10 +1,13 @@
 package com.daur.app.viewmodel
 
+import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.daur.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -35,7 +38,7 @@ class AuthViewModel : ViewModel() {
             _uiState.value = AuthUiState.Error("Email dan password wajib diisi")
             return
         }
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             _uiState.value = AuthUiState.Error("Format email tidak valid")
             return
         }
@@ -93,7 +96,7 @@ class AuthViewModel : ViewModel() {
         password: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val url  = URL("$AUTH_ENDPOINT/token?grant_type=password")
+            val url = URL("$AUTH_ENDPOINT/token?grant_type=password")
             val body = """{"email":"$email","password":"$password"}"""
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -118,8 +121,9 @@ class AuthViewModel : ViewModel() {
         nama: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val url  = URL("$AUTH_ENDPOINT/signup")
-            val body = """{"email":"$email","password":"$password","data":{"nama_lengkap":"$nama"}}"""
+            val url = URL("$AUTH_ENDPOINT/signup")
+            val body =
+                """{"email":"$email","password":"$password","data":{"nama_lengkap":"$nama"}}"""
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")

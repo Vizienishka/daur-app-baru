@@ -8,8 +8,6 @@ import com.daur.app.ui.screens.LoginScreen
 import com.daur.app.ui.screens.MainScreen
 import com.daur.app.ui.screens.SplashScreen
 
-// ── Routes level-atas (Splash → Login → Main) ─────────────
-// Route di dalam tab (beranda, setor, dst) dikelola oleh MainScreen
 object Routes {
     const val SPLASH = "splash"
     const val LOGIN  = "login"
@@ -20,11 +18,8 @@ object Routes {
 fun DaurNavGraph(startDestination: String = Routes.SPLASH) {
     val navController = rememberNavController()
 
-    NavHost(
-        navController    = navController,
-        startDestination = startDestination
-    ) {
-        // Splash Screen
+    NavHost(navController = navController, startDestination = startDestination) {
+
         composable(Routes.SPLASH) {
             SplashScreen(
                 onSplashFinished = {
@@ -35,7 +30,6 @@ fun DaurNavGraph(startDestination: String = Routes.SPLASH) {
             )
         }
 
-        // Login / Register Screen
         composable(Routes.LOGIN) {
             LoginScreen(
                 onLoginSuccess = {
@@ -46,9 +40,14 @@ fun DaurNavGraph(startDestination: String = Routes.SPLASH) {
             )
         }
 
-        // Main Screen (Scaffold + BottomNavBar + semua tab)
         composable(Routes.MAIN) {
-            MainScreen()
+            MainScreen(
+                onLogout = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.MAIN) { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }

@@ -4,15 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -21,44 +20,42 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.daur.app.model.Reward
 import com.daur.app.ui.theme.*
-
-data class HadiahItem(
-    val nama: String,
-    val deskripsi: String,
-    val poin: String,
-    val kategori: String,
-    val iconBg: Color,
-    val iconColor: Color
-)
+import com.daur.app.viewmodel.TukarPoinViewModel
+import com.daur.app.viewmodel.UiState
+import com.daur.app.data.SessionManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TukarPoinScreen() {
-    val kategoriList = listOf("Semua Hadiah", "Voucher", "Pulsa", "Sembako")
-    var selectedKategori by remember { mutableStateOf("Semua Hadiah") }
+fun TukarPoinScreen(vm: TukarPoinViewModel = viewModel()) {
+    val state by vm.state.collectAsState()
+    val selectedKategori by vm.selectedKategori.collectAsState()
+    val tukarState by vm.tukarState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    val hadiahList = listOf(
-        HadiahItem("Pulsa All Operator Rp50.000", "Top up saldo pulsa instan untuk semua provider seluler Indonesia.", "5.000 Pts", "Pulsa", Color(0xFF00694C).copy(0.1f), Primary),
-        HadiahItem("Voucher Indomaret Rp100rb", "Voucher belanja digital yang dapat digunakan di seluruh gerai Indomaret.", "10.000 Pts", "Voucher", Color(0xFF855400).copy(0.1f), Secondary),
-        HadiahItem("Paket Sembako Berkah", "Terdiri dari 2kg beras premium, 1L minyak goreng, dan 1kg gula pasir.", "7.500 Pts", "Sembako", Color(0xFF00694C).copy(0.1f), Primary),
-        HadiahItem("Saldo GoPay Rp25.000", "Saldo instan yang akan dikirim langsung ke nomor GoPay terdaftar Anda.", "2.500 Pts", "Voucher", Color(0xFF855400).copy(0.1f), Secondary),
-    )
+    LaunchedEffect(tukarState) {
+        when (val t = tukarState) {
+            is UiState.Success -> { snackbarHostState.showSnackbar("✅ Penukaran berhasil!"); vm.resetTukar() }
+            is UiState.Error   -> { snackbarHostState.showSnackbar("❌ ${t.message}"); vm.resetTukar() }
+            else -> {}
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = {
-                    Text("Daur", fontWeight = FontWeight.Bold, color = Primary, fontSize = 22.sp)
-                },
+                title = { Text("Tukar Poin", fontWeight = FontWeight.Bold, color = Primary, fontSize = 20.sp) },
                 actions = {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Outlined.Notifications, contentDescription = "Notifikasi", tint = Primary)
+                    IconButton(onClick = { vm.load() }) {
+                        Icon(Icons.Outlined.Refresh, contentDescription = "Refresh", tint = Primary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
@@ -66,153 +63,158 @@ fun TukarPoinScreen() {
         },
         containerColor = Background
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 32.dp)
         ) {
             // ── Saldo Poin Card ──────────────────────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF008560))
-                    .padding(20.dp)
-            ) {
-                // Dekorasi
+            item {
                 Box(
                     modifier = Modifier
-                        .size(128.dp)
-                        .align(Alignment.TopEnd)
-                        .offset(x = 32.dp, y = (-32).dp)
-                        .clip(CircleShape)
-                        .background(Primary.copy(alpha = 0.2f))
-                )
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .align(Alignment.BottomStart)
-                        .offset(x = (-16).dp, y = 16.dp)
-                        .clip(CircleShape)
-                        .background(Secondary.copy(alpha = 0.1f))
-                )
-                Column {
-                    Text("Saldo Poin Anda", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.9f))
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Filled.Stars, contentDescription = null, tint = Color(0xFFFCAA33), modifier = Modifier.size(32.dp))
-                        Text("12.450 Poin", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.1f))
-                            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(Icons.Outlined.Info, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            Text("Tukarkan poinmu sebelum 31 Des 2023", fontSize = 11.sp, color = Color.White)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Primary)
+                        .padding(20.dp)
+                ) {
+                    Box(modifier = Modifier.size(128.dp).align(Alignment.TopEnd).offset(x = 32.dp, y = (-32).dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)))
+                    Box(modifier = Modifier.size(80.dp).align(Alignment.BottomStart).offset(x = (-20).dp, y = 20.dp).clip(CircleShape).background(Secondary.copy(alpha = 0.15f)))
+                    Column {
+                        Text("Saldo Poin Anda", fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f))
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Filled.Stars, contentDescription = null, tint = Color(0xFFFCAA33), modifier = Modifier.size(30.dp))
+                            Text("— Poin", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.12f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Outlined.Info, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                Text("Poin bertambah otomatis setiap setoran selesai", fontSize = 11.sp, color = Color.White)
+                            }
                         }
                     }
                 }
             }
 
             // ── Filter tabs ──────────────────────────────
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                items(kategoriList) { kat ->
-                    val isSelected = selectedKategori == kat
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(if (isSelected) Primary else SurfaceContainer)
-                            .clickable { selectedKategori = kat }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(kat, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (isSelected) Color.White else OnSurface)
-                    }
-                }
-            }
-
-            // ── Grid hadiah ───────────────────────────────
-            Column(modifier = Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                val filteredList = if (selectedKategori == "Semua Hadiah") hadiahList
-                else hadiahList.filter { it.kategori == selectedKategori }
-
-                filteredList.chunked(2).forEach { rowItems ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        rowItems.forEach { hadiah ->
-                            HadiahCard(item = hadiah, modifier = Modifier.weight(1f))
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    items(vm.kategoriList) { kat ->
+                        val isSelected = selectedKategori == kat
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(if (isSelected) Primary else SurfaceContainer)
+                                .clickable { vm.setKategori(kat) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text(kat, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                color = if (isSelected) Color.White else OnSurface)
                         }
-                        if (rowItems.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
-            Spacer(Modifier.height(24.dp))
+
+            // ── Grid Hadiah ──────────────────────────────
+            item {
+                when (val s = state) {
+                    is UiState.Loading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Primary)
+                    }
+                    is UiState.Empty -> EmptyState(icon = Icons.Outlined.CardGiftcard, title = "Belum ada hadiah", message = "Hadiah kategori ini sedang tidak tersedia.")
+                    is UiState.Error -> EmptyState(icon = Icons.Outlined.ErrorOutline, title = "Gagal memuat", message = s.message, isError = true, onRetry = { vm.load() })
+                    is UiState.Success -> {
+                        // LazyVerticalGrid tidak bisa di dalam LazyColumn langsung,
+                        // gunakan Column + chunked
+                        Column(
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            s.data.chunked(2).forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    row.forEach { reward ->
+                                        RewardCard(
+                                            reward   = reward,
+                                            modifier = Modifier.weight(1f),
+                                            onTukar  = { vm.tukar(reward) },
+                                            isLoading = tukarState is UiState.Loading
+                                        )
+                                    }
+                                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun HadiahCard(item: HadiahItem, modifier: Modifier = Modifier) {
+private fun RewardCard(reward: Reward, modifier: Modifier, onTukar: () -> Unit, isLoading: Boolean) {
+    val (iconBg, iconColor) = when (reward.kategori) {
+        "voucher" -> Secondary.copy(alpha = 0.1f) to Secondary
+        "donasi"  -> Color(0xFF006B5B).copy(alpha = 0.1f) to Color(0xFF006B5B)
+        else      -> Primary.copy(alpha = 0.1f) to Primary
+    }
     Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant),
+        modifier  = modifier,
+        shape     = RoundedCornerShape(16.dp),
+        colors    = CardDefaults.cardColors(containerColor = Color.White),
+        border    = androidx.compose.foundation.BorderStroke(1.dp, OutlineVariant),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column {
-            // Gambar area
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .background(item.iconBg),
-                contentAlignment = Alignment.Center
-            ) {
+            // Thumbnail
+            Box(modifier = Modifier.fillMaxWidth().height(110.dp).background(iconBg), contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Outlined.CardGiftcard,
-                    contentDescription = null,
-                    tint = item.iconColor,
-                    modifier = Modifier.size(48.dp)
+                    imageVector = when (reward.kategori) {
+                        "voucher" -> Icons.Outlined.LocalOffer
+                        "donasi"  -> Icons.Outlined.Favorite
+                        else      -> Icons.Outlined.Inventory2
+                    },
+                    contentDescription = null, tint = iconColor, modifier = Modifier.size(44.dp)
                 )
                 // Badge poin
                 Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .clip(CircleShape)
-                        .background(Secondary)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).clip(CircleShape).background(Secondary).padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Icon(Icons.Filled.Stars, contentDescription = null, tint = Color(0xFF2a1700), modifier = Modifier.size(12.dp))
-                        Text(item.poin, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF2a1700))
+                        Icon(Icons.Filled.Stars, contentDescription = null, tint = Color(0xFF2a1700), modifier = Modifier.size(11.dp))
+                        Text("%,d".format(reward.poinDiperlukan), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2a1700))
                     }
                 }
             }
-
-            // Konten
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(item.nama, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = OnSurface, maxLines = 2)
+            Column(modifier = Modifier.padding(10.dp)) {
+                Text(reward.nama, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = OnSurface, maxLines = 2, lineHeight = 18.sp)
+                if (reward.deskripsi.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(reward.deskripsi, fontSize = 11.sp, color = OnSurfaceVariant, maxLines = 2)
+                }
                 Spacer(Modifier.height(4.dp))
-                Text(item.deskripsi, fontSize = 12.sp, color = OnSurfaceVariant, maxLines = 2)
-                Spacer(Modifier.height(10.dp))
+                // Stok
+                Text("Stok: ${reward.stok}", fontSize = 11.sp, color = if (reward.stok > 5) Primary else Error)
+                Spacer(Modifier.height(8.dp))
                 Button(
-                    onClick = {},
-                    modifier = Modifier.fillMaxWidth().height(38.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                    onClick  = onTukar,
+                    enabled  = !isLoading && reward.stok > 0,
+                    modifier = Modifier.fillMaxWidth().height(36.dp),
+                    shape    = CircleShape,
+                    colors   = ButtonDefaults.buttonColors(containerColor = Primary)
                 ) {
-                    Text("Tukar", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                    else Text("Tukar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

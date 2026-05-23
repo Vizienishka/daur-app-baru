@@ -7,10 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -26,92 +26,190 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.daur.app.model.Profile
+import com.daur.app.model.Setoran
 import com.daur.app.ui.theme.*
+import com.daur.app.viewmodel.BerandaState
+import com.daur.app.viewmodel.BerandaUiData
+import com.daur.app.viewmodel.BerandaViewModel
 
 @Composable
 fun BerandaScreen(
     onSetor: () -> Unit = {},
     onTukarPoin: () -> Unit = {},
-    onLihatRiwayat: () -> Unit = {}
+    onLihatRiwayat: () -> Unit = {},
+    vm: BerandaViewModel = viewModel()
 ) {
-    Column(
+    val state by vm.state.collectAsState()
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
+            .background(Background),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Spacer(Modifier.height(16.dp))
-        GreetingSection()
-        Spacer(Modifier.height(16.dp))
-        SaldoPoinCard()
-        Spacer(Modifier.height(24.dp))
-        QuickActionSection(onSetor = onSetor, onTukarPoin = onTukarPoin)
-        Spacer(Modifier.height(24.dp))
-        TargetProgressCard()
-        Spacer(Modifier.height(24.dp))
-        AktivitasTerbaruSection(onLihatSemua = onLihatRiwayat)
-        Spacer(Modifier.height(24.dp))
-        EcoTipCard()
-        Spacer(Modifier.height(24.dp))
+        when (val s = state) {
+            is BerandaState.Loading -> item {
+                Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Primary)
+                }
+            }
+
+            is BerandaState.Error -> item {
+                EmptyState(
+                    icon    = Icons.Outlined.ErrorOutline,
+                    title   = "Gagal memuat",
+                    message = s.message,
+                    isError = true,
+                    onRetry = { vm.load() }
+                )
+            }
+
+            is BerandaState.Success -> {
+                val data = s.data
+
+                // ── Greeting ───────────────────────────
+                item { GreetingSection(profile = data.profile, onRefresh = { vm.load() }) }
+
+                // ── Saldo Poin Card ────────────────────
+                item { SaldoPoinCard(profile = data.profile) }
+
+                // ── Quick Actions ──────────────────────
+                item {
+                    QuickActionSection(
+                        onSetor     = onSetor,
+                        onTukarPoin = onTukarPoin
+                    )
+                }
+
+                // ── Target Progress ────────────────────
+                item {
+                    TargetProgressCard(
+                        beratSaatIni = data.totalBeratMingguIni,
+                        targetBerat  = data.targetBeratMinggu
+                    )
+                }
+
+                // ── Aktivitas Terbaru ──────────────────
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Aktivitas Terbaru", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = OnSurface)
+                        TextButton(onClick = onLihatRiwayat) {
+                            Text("Lihat Semua", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Primary)
+                        }
+                    }
+                }
+
+                if (data.aktivitasTerbaru.isEmpty()) {
+                    item {
+                        Card(
+                            modifier  = Modifier.fillMaxWidth(),
+                            shape     = RoundedCornerShape(16.dp),
+                            colors    = CardDefaults.cardColors(containerColor = Surface),
+                            elevation = CardDefaults.cardElevation(0.dp),
+                            border    = BorderStroke(1.dp, OutlineVariant.copy(alpha = 0.3f))
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Outlined.Inbox, contentDescription = null,
+                                        tint = OnSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(40.dp))
+                                    Text("Belum ada aktivitas", fontSize = 14.sp, color = OnSurfaceVariant)
+                                    TextButton(onClick = onSetor) {
+                                        Text("Mulai Setor Sekarang →", color = Primary, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    items(data.aktivitasTerbaru, key = { it.id }) { setoran ->
+                        AktivitasItem(setoran = setoran)
+                    }
+                }
+
+                // ── Eco Tip ────────────────────────────
+                item { EcoTipCard() }
+
+                item { Spacer(Modifier.height(8.dp)) }
+            }
+        }
     }
 }
 
 // ── Greeting ───────────────────────────────────────────────
 @Composable
-private fun GreetingSection() {
+private fun GreetingSection(profile: Profile, onRefresh: () -> Unit) {
+    val namaDepan = profile.namaLengkap.split(" ").firstOrNull()
+        ?.ifEmpty { "Pengguna" } ?: "Pengguna"
+
     Row(
-        modifier              = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text       = "Halo, Rizky!",
-                fontSize   = 24.sp,
+                text = "Halo, $namaDepan! 👋",
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
-                color      = OnSurface
+                color = OnSurface
             )
             Text(
-                text     = "Sudahkah kamu mendaur ulang hari ini?",
+                text = "Sudahkah kamu mendaur ulang hari ini?",
                 fontSize = 14.sp,
-                color    = OnSurfaceVariant
+                color = OnSurfaceVariant
             )
         }
         Box(
-            modifier         = Modifier
+            modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
                 .background(PrimaryContainer)
-                .border(2.dp, Primary, CircleShape),
+                .border(2.dp, Primary, CircleShape)
+                .clickable { onRefresh() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector        = Icons.Filled.Person,
-                contentDescription = "Avatar",
-                tint               = Primary,
-                modifier           = Modifier.size(28.dp)
-            )
+            if (profile.namaLengkap.isNotEmpty()) {
+                Text(
+                    text = profile.namaLengkap.first().uppercase(),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Primary
+                )
+            } else {
+                Icon(Icons.Filled.Person, contentDescription = "Avatar", tint = Primary, modifier = Modifier.size(28.dp))
+            }
         }
     }
 }
 
 // ── Saldo Poin Card ────────────────────────────────────────
 @Composable
-private fun SaldoPoinCard() {
+private fun SaldoPoinCard(profile: Profile) {
+    val nilaiRupiah = profile.totalPoin * 10  // 1 poin = Rp10
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
-            .background(
-                Brush.linearGradient(colors = listOf(Primary, Color(0xFF004D38)))
-            )
+            .background(Brush.linearGradient(colors = listOf(Primary, Color(0xFF004D38))))
             .padding(24.dp)
     ) {
-        // Dekorasi
+        // Dekorasi lingkaran
         Box(
             modifier = Modifier
                 .size(160.dp)
@@ -123,63 +221,44 @@ private fun SaldoPoinCard() {
 
         Column {
             // Label
-            Row(
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    imageVector        = Icons.Outlined.AccountBalanceWallet,
-                    contentDescription = null,
-                    tint               = Color.White.copy(alpha = 0.9f),
-                    modifier           = Modifier.size(20.dp)
-                )
-                Text(
-                    text       = "Saldo Poin",
-                    fontSize   = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = Color.White.copy(alpha = 0.9f)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(20.dp))
+                Text("Saldo Poin", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.9f))
             }
 
             Spacer(Modifier.height(12.dp))
 
             // Nilai poin
             Row(
-                modifier              = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment     = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text       = "12.450",
-                        fontSize   = 40.sp,
+                        text = "%,d".format(profile.totalPoin),
+                        fontSize = 40.sp,
                         fontWeight = FontWeight.Bold,
-                        color      = Color.White
+                        color = Color.White
                     )
                     Text(
-                        text       = "Poin",
-                        fontSize   = 14.sp,
+                        text = "Poin",
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color      = Color.White.copy(alpha = 0.7f),
-                        modifier   = Modifier.padding(bottom = 6.dp)
+                        color = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(bottom = 6.dp)
                     )
                 }
                 Box(
-                    modifier         = Modifier
+                    modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color(0xFFFCAA33))
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector        = Icons.Filled.MonetizationOn,
-                        contentDescription = null,
-                        tint               = Color(0xFF6B4200),
-                        modifier           = Modifier.size(32.dp)
-                    )
+                    Icon(Icons.Filled.MonetizationOn, contentDescription = null,
+                        tint = Color(0xFF6B4200), modifier = Modifier.size(32.dp))
                 }
             }
 
@@ -187,23 +266,25 @@ private fun SaldoPoinCard() {
             HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
             Spacer(Modifier.height(12.dp))
 
-            // Rupiah
             Row(
-                modifier              = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text     = "Setara dengan Rp124.500",
+                    text = "Setara dengan Rp%,d".format(nilaiRupiah),
                     fontSize = 12.sp,
-                    color    = Color.White.copy(alpha = 0.8f)
+                    color = Color.White.copy(alpha = 0.8f)
                 )
-                Icon(
-                    imageVector        = Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint               = Color.White.copy(alpha = 0.8f),
-                    modifier           = Modifier.size(18.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Outlined.Recycling, contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
+                    Text(
+                        text = "${profile.totalSetoran} setoran",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
             }
         }
     }
@@ -212,10 +293,7 @@ private fun SaldoPoinCard() {
 // ── Quick Actions ──────────────────────────────────────────
 @Composable
 private fun QuickActionSection(onSetor: () -> Unit, onTukarPoin: () -> Unit) {
-    Row(
-        modifier              = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         QuickActionButton(
             modifier    = Modifier.weight(1f),
             icon        = Icons.Outlined.Recycling,
@@ -252,44 +330,29 @@ private fun QuickActionButton(
         border    = BorderStroke(1.dp, OutlineVariant)
     ) {
         Column(
-            modifier            = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 20.dp, horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp, horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Box(
-                modifier         = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(iconBgColor),
+                modifier = Modifier.size(48.dp).clip(CircleShape).background(iconBgColor),
                 contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector        = icon,
-                    contentDescription = label,
-                    tint               = iconTint,
-                    modifier           = Modifier.size(28.dp)
-                )
-            }
-            Text(
-                text       = label,
-                fontSize   = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color      = OnSurface
-            )
+            ) { Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(28.dp)) }
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = OnSurface)
         }
     }
 }
 
 // ── Target Progress ────────────────────────────────────────
 @Composable
-private fun TargetProgressCard() {
+private fun TargetProgressCard(beratSaatIni: Double, targetBerat: Double) {
+    val persen = if (targetBerat > 0) (beratSaatIni / targetBerat).toFloat().coerceIn(0f, 1f) else 0f
     val animatedProgress by animateFloatAsState(
-        targetValue   = 0.85f,
+        targetValue = persen,
         animationSpec = tween(1000),
-        label         = "progress"
+        label = "progress"
     )
+    val persenLabel = (persen * 100).toInt()
 
     Card(
         modifier  = Modifier.fillMaxWidth(),
@@ -300,26 +363,14 @@ private fun TargetProgressCard() {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier              = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text       = "Target Setoran Mingguan",
-                    fontSize   = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = OnSurface
-                )
-                Text(
-                    text       = "85%",
-                    fontSize   = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = Primary
-                )
+                Text("Target Setoran Mingguan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = OnSurface)
+                Text("$persenLabel%", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Primary)
             }
-
             Spacer(Modifier.height(8.dp))
-
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -335,96 +386,42 @@ private fun TargetProgressCard() {
                         .background(Primary)
                 )
             }
-
             Spacer(Modifier.height(8.dp))
-
+            val sisaBerat = (targetBerat - beratSaatIni).coerceAtLeast(0.0)
             Text(
-                text      = "Tinggal 2.5kg lagi untuk mencapai target!",
-                fontSize  = 11.sp,
-                color     = OnSurfaceVariant,
+                text = if (sisaBerat > 0)
+                    "Tinggal %.1f kg lagi untuk mencapai target!".format(sisaBerat)
+                else
+                    "🎉 Target minggu ini tercapai!",
+                fontSize = 11.sp,
+                color = if (sisaBerat > 0) OnSurfaceVariant else Primary,
                 fontStyle = FontStyle.Italic
             )
         }
     }
 }
 
-// ── Aktivitas Terbaru ──────────────────────────────────────
+// ── Aktivitas Item ─────────────────────────────────────────
 @Composable
-private fun AktivitasTerbaruSection(onLihatSemua: () -> Unit) {
-    Column {
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically
-        ) {
-            Text(
-                text       = "Aktivitas Terbaru",
-                fontSize   = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color      = OnSurface
-            )
-            TextButton(onClick = onLihatSemua) {
-                Text(
-                    text       = "Lihat Semua",
-                    fontSize   = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = Primary
-                )
-            }
-        }
-
-        Spacer(Modifier.height(4.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            AktivitasItem(
-                icon        = Icons.Outlined.DeleteSweep,
-                iconTint    = Primary,
-                title       = "Setoran Plastik PET",
-                subtitle    = "Kemarin • 2.5 kg",
-                poin        = "+500 Poin",
-                poinColor   = Primary,
-                status      = "Selesai",
-                statusBg    = Primary.copy(alpha = 0.1f),
-                statusColor = Primary
-            )
-            AktivitasItem(
-                icon        = Icons.Outlined.ShoppingCartCheckout,
-                iconTint    = Secondary,
-                title       = "Voucher Belanja Indomaret",
-                subtitle    = "12 Okt 2023",
-                poin        = "-5.000 Poin",
-                poinColor   = Error,
-                status      = "Diproses",
-                statusBg    = Color(0xFFE1E3E4),
-                statusColor = OnSurfaceVariant
-            )
-            AktivitasItem(
-                icon        = Icons.Outlined.Inventory2,
-                iconTint    = Primary,
-                title       = "Setoran Kertas & Karton",
-                subtitle    = "10 Okt 2023 • 1.2 kg",
-                poin        = "+240 Poin",
-                poinColor   = Primary,
-                status      = "Selesai",
-                statusBg    = Primary.copy(alpha = 0.1f),
-                statusColor = Primary
-            )
-        }
+private fun AktivitasItem(setoran: Setoran) {
+    val (statusBg, statusColor, poinColor) = when (setoran.status) {
+        "selesai"  -> Triple(Primary.copy(alpha = 0.1f), Primary, Primary)
+        "diproses" -> Triple(Secondary.copy(alpha = 0.1f), Secondary, Secondary)
+        "ditolak"  -> Triple(Error.copy(alpha = 0.1f), Error, Error)
+        else       -> Triple(SurfaceContainer, OnSurfaceVariant, OnSurfaceVariant)
     }
-}
+    val statusLabel = when (setoran.status) {
+        "selesai"  -> "Selesai"
+        "diproses" -> "Diproses"
+        "ditolak"  -> "Ditolak"
+        else       -> "Menunggu"
+    }
+    val icon = when (setoran.status) {
+        "selesai" -> Icons.Outlined.CheckCircle
+        "ditolak" -> Icons.Outlined.Cancel
+        else      -> Icons.Outlined.Recycling
+    }
 
-@Composable
-private fun AktivitasItem(
-    icon: ImageVector,
-    iconTint: Color,
-    title: String,
-    subtitle: String,
-    poin: String,
-    poinColor: Color,
-    status: String,
-    statusBg: Color,
-    statusColor: Color
-) {
     Card(
         modifier  = Modifier.fillMaxWidth(),
         shape     = RoundedCornerShape(16.dp),
@@ -432,46 +429,39 @@ private fun AktivitasItem(
         elevation = CardDefaults.cardElevation(1.dp)
     ) {
         Row(
-            modifier              = Modifier.padding(16.dp),
-            verticalAlignment     = Alignment.CenterVertically,
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
-                modifier         = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFE7E8E9)),
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(statusBg),
                 contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector        = icon,
-                    contentDescription = null,
-                    tint               = iconTint,
-                    modifier           = Modifier.size(22.dp)
-                )
-            }
+            ) { Icon(icon, contentDescription = null, tint = statusColor, modifier = Modifier.size(22.dp)) }
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text       = title,
-                    fontSize   = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = OnSurface
+                    text = setoran.kodeSetoran.ifEmpty { "Setoran" },
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = OnSurface
                 )
                 Text(
-                    text     = subtitle,
-                    fontSize = 11.sp,
-                    color    = OnSurfaceVariant
+                    text = buildString {
+                        val tgl = setoran.createdAt.take(10).replace("-", "/")
+                        if (tgl.isNotEmpty() && tgl != "//") append("$tgl • ")
+                        append("%.1f kg".format(setoran.totalBerat))
+                    },
+                    fontSize = 11.sp, color = OnSurfaceVariant
                 )
             }
 
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text       = poin,
-                    fontSize   = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = poinColor
-                )
+                if (setoran.totalPoin > 0) {
+                    Text(
+                        text = "+${setoran.totalPoin} Pts",
+                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = poinColor
+                    )
+                } else {
+                    Text("— Pts", fontSize = 14.sp, color = OnSurfaceVariant)
+                }
                 Spacer(Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
@@ -479,12 +469,7 @@ private fun AktivitasItem(
                         .background(statusBg)
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
-                    Text(
-                        text       = status,
-                        fontSize   = 10.sp,
-                        color      = statusColor,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text(statusLabel, fontSize = 10.sp, color = statusColor, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -494,42 +479,35 @@ private fun AktivitasItem(
 // ── Eco Tip Card ───────────────────────────────────────────
 @Composable
 private fun EcoTipCard() {
+    val tips = listOf(
+        "Bilas botol plastik dari sisa minuman untuk mempermudah proses daur ulang.",
+        "Pisahkan sampah organik dan anorganik dari rumah untuk hasil daur ulang lebih baik.",
+        "Gunakan tas belanja kain untuk mengurangi sampah plastik sekali pakai.",
+        "Kertas bekas satu sisi masih bisa digunakan untuk catatan atau print draft."
+    )
+    val tip = remember { tips.random() }
     val borderColor = Primary
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Surface)
             .drawBehind {
-                // Border kiri 4dp
                 drawLine(
-                    color       = borderColor,
-                    start       = Offset(0f, 0f),
-                    end         = Offset(0f, size.height),
+                    color = borderColor,
+                    start = Offset(0f, 0f),
+                    end = Offset(0f, size.height),
                     strokeWidth = 12.dp.toPx()
                 )
             }
             .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(
-            imageVector        = Icons.Filled.Lightbulb,
-            contentDescription = null,
-            tint               = Primary,
-            modifier           = Modifier.size(24.dp)
-        )
+        Icon(Icons.Filled.Lightbulb, contentDescription = null, tint = Primary, modifier = Modifier.size(24.dp))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text       = "Tips Hijau",
-                fontSize   = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color      = OnSurface
-            )
-            Text(
-                text     = "Bilas botol plastik dari sisa minuman untuk mempermudah proses daur ulang.",
-                fontSize = 14.sp,
-                color    = OnSurfaceVariant
-            )
+            Text("Tips Hijau", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = OnSurface)
+            Text(tip, fontSize = 14.sp, color = OnSurfaceVariant)
         }
     }
 }

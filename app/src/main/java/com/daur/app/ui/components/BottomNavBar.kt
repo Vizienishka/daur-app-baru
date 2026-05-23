@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daur.app.ui.theme.*
 
-// ── Data class untuk setiap item nav ──────────────────────
 data class BottomNavItem(
     val route: String,
     val label: String,
@@ -33,63 +32,34 @@ data class BottomNavItem(
 )
 
 val bottomNavItems = listOf(
-    BottomNavItem(
-        route         = "beranda",
-        label         = "Beranda",
-        iconSelected  = Icons.Filled.Home,
-        iconUnselected = Icons.Outlined.Home
-    ),
-    BottomNavItem(
-        route         = "setor",
-        label         = "Setor",
-        iconSelected  = Icons.Filled.AddCircle,
-        iconUnselected = Icons.Outlined.AddCircle
-    ),
-    BottomNavItem(
-        route         = "riwayat",
-        label         = "Riwayat",
-        iconSelected  = Icons.Filled.History,
-        iconUnselected = Icons.Outlined.History
-    ),
-    BottomNavItem(
-        route         = "hadiah",
-        label         = "Hadiah",
-        iconSelected  = Icons.Filled.Redeem,
-        iconUnselected = Icons.Outlined.Redeem
-    ),
-    BottomNavItem(
-        route         = "profil",
-        label         = "Profil",
-        iconSelected  = Icons.Filled.Person,
-        iconUnselected = Icons.Outlined.Person
-    )
+    BottomNavItem("beranda", "Beranda",  Icons.Filled.Home,       Icons.Outlined.Home),
+    BottomNavItem("riwayat", "Riwayat",  Icons.Filled.History,    Icons.Outlined.History),
+    BottomNavItem("setor",   "Setor",    Icons.Filled.AddCircle,  Icons.Outlined.AddCircle),
+    BottomNavItem("hadiah",  "Hadiah",   Icons.Filled.Redeem,     Icons.Outlined.Redeem),
+    BottomNavItem("edukasi", "Edukasi",  Icons.Filled.MenuBook,   Icons.Outlined.MenuBook),
+    BottomNavItem("profil",  "Profil",   Icons.Filled.Person,     Icons.Outlined.Person)
 )
 
-// ── BottomNavBar ───────────────────────────────────────────
 @Composable
-fun BottomNavBar(
-    currentRoute: String,
-    onItemClick: (String) -> Unit
-) {
+fun BottomNavBar(currentRoute: String, onItemClick: (String) -> Unit) {
     Surface(
-        modifier      = Modifier.fillMaxWidth(),
-        color         = Surface,
+        modifier        = Modifier.fillMaxWidth(),
+        color           = Surface,
         shadowElevation = 8.dp,
-        shape         = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        shape           = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(horizontal = 4.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment     = Alignment.CenterVertically
         ) {
             bottomNavItems.forEach { item ->
-                val isSelected = currentRoute == item.route
-                BottomNavItem(
+                NavItemView(
                     item       = item,
-                    isSelected = isSelected,
+                    isSelected = currentRoute == item.route,
                     onClick    = { onItemClick(item.route) }
                 )
             }
@@ -97,27 +67,19 @@ fun BottomNavBar(
     }
 }
 
-// ── Single nav item ────────────────────────────────────────
 @Composable
-private fun BottomNavItem(
-    item: BottomNavItem,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
+private fun NavItemView(item: BottomNavItem, isSelected: Boolean, onClick: () -> Unit) {
     val bgColor by animateColorAsState(
-        targetValue    = if (isSelected) PrimaryContainer else androidx.compose.ui.graphics.Color.Transparent,
-        animationSpec  = tween(200),
-        label          = "navBg"
+        targetValue   = if (isSelected) PrimaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+        animationSpec = tween(200), label = "navBg"
     )
     val contentColor by animateColorAsState(
-        targetValue    = if (isSelected) Primary else OnSurfaceVariant,
-        animationSpec  = tween(200),
-        label          = "navContent"
+        targetValue   = if (isSelected) Primary else OnSurfaceVariant,
+        animationSpec = tween(200), label = "navContent"
     )
-    val horizontalPadding by animateDpAsState(
-        targetValue    = if (isSelected) 16.dp else 0.dp,
-        animationSpec  = tween(200),
-        label          = "navPadding"
+    val hPadding by animateDpAsState(
+        targetValue   = if (isSelected) 12.dp else 0.dp,
+        animationSpec = tween(200), label = "navPad"
     )
 
     Column(
@@ -125,34 +87,30 @@ private fun BottomNavItem(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .clickable(
-                indication           = null,
-                interactionSource    = remember { MutableInteractionSource() },
-                onClick              = onClick
+                indication        = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick           = onClick
             )
             .padding(vertical = 4.dp)
     ) {
-        // Pill indicator + icon
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
                 .background(bgColor)
-                .padding(horizontal = horizontalPadding, vertical = 4.dp),
+                .padding(horizontal = hPadding, vertical = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector         = if (isSelected) item.iconSelected else item.iconUnselected,
-                contentDescription  = item.label,
-                tint                = contentColor,
-                modifier            = Modifier.size(24.dp)
+                imageVector        = if (isSelected) item.iconSelected else item.iconUnselected,
+                contentDescription = item.label,
+                tint               = contentColor,
+                modifier           = Modifier.size(22.dp)
             )
         }
-
         Spacer(Modifier.height(2.dp))
-
-        // Label
         Text(
             text       = item.label,
-            fontSize   = 10.sp,
+            fontSize   = 9.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             color      = contentColor
         )
