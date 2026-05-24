@@ -21,11 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.daur.app.model.Setoran
 import com.daur.app.ui.theme.*
 import com.daur.app.viewmodel.RiwayatViewModel
@@ -189,10 +191,24 @@ private fun SetoranCard(setoran: Setoran, isExpanded: Boolean, onToggle: () -> U
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         // Foto placeholder
-                        Box(
-                            modifier = Modifier.weight(1f).height(100.dp).clip(RoundedCornerShape(12.dp)).background(SurfaceContainer),
-                            contentAlignment = Alignment.Center
-                        ) { Icon(Icons.Outlined.Image, contentDescription = null, tint = Color(0xFF6D7A73), modifier = Modifier.size(36.dp)) }
+                        // SESUDAH — tampil foto jika ada, placeholder jika tidak ✅
+                        if (setoran.fotoUrl.isNotEmpty()) {
+                            AsyncImage(
+                                model              = setoran.fotoUrl,
+                                contentDescription = "Foto sampah",
+                                contentScale       = ContentScale.Crop,
+                                modifier           = Modifier
+                                    .weight(1f)
+                                    .height(100.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.weight(1f).height(100.dp)
+                                    .clip(RoundedCornerShape(12.dp)).background(SurfaceContainer),
+                                contentAlignment = Alignment.Center
+                            ) { Icon(Icons.Outlined.Image, contentDescription = null, tint = Color(0xFF6D7A73), modifier = Modifier.size(36.dp)) }
+                        }
 
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             DetailBox(label = "STATUS", value = statusLabel, valueColor = statusColor, bg = statusBg)

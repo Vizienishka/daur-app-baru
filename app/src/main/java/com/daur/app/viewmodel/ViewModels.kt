@@ -159,6 +159,7 @@ class SetorViewModel : ViewModel() {
                 totalPoin  = totalPoin,
                 totalHarga = totalHarga,
                 catatan    = catatan.value,
+                fotoBitmap = fotoBitmap.value,
                 token      = SessionManager.accessToken
             )
                 .onSuccess {

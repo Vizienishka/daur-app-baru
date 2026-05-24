@@ -15,7 +15,7 @@ data class Profile(
 data class KatalogSampah(
     val id: String = "",
     val nama: String = "",
-    val kategori: String = "",      // plastik, kertas, logam, kaca, elektronik
+    val kategori: String = "",
     val deskripsi: String = "",
     val poinPerKg: Int = 0,
     val hargaPerKg: Double = 0.0,
@@ -28,13 +28,13 @@ data class Setoran(
     val id: String = "",
     val userId: String = "",
     val kodeSetoran: String = "",
-    val status: String = "menunggu",  // menunggu, diproses, selesai, ditolak
+    val status: String = "menunggu",
     val totalPoin: Int = 0,
     val totalBerat: Double = 0.0,
     val totalHarga: Double = 0.0,
     val catatan: String = "",
+    val fotoUrl: String = "",       // ← kolom foto_url dari DB
     val createdAt: String = "",
-    // Joined dari detail_setoran — nama item pertama
     val judulItem: String = ""
 )
 
@@ -56,7 +56,7 @@ data class Reward(
     val poinDiperlukan: Int = 0,
     val stok: Int = 0,
     val gambarUrl: String = "",
-    val kategori: String = "",   // voucher, produk, donasi
+    val kategori: String = "",
     val isActive: Boolean = true
 )
 
@@ -67,7 +67,7 @@ data class PenukaranPoin(
     val rewardId: String = "",
     val kodeTukar: String = "",
     val poinDigunakan: Int = 0,
-    val status: String = "menunggu",  // menunggu, diproses, selesai, dibatalkan
+    val status: String = "menunggu",
     val createdAt: String = ""
 )
 
@@ -78,7 +78,7 @@ data class Edukasi(
     val konten: String = "",
     val ringkasan: String = "",
     val gambarUrl: String = "",
-    val kategori: String = "",   // tips, artikel, video, infografis
+    val kategori: String = "",
     val isPublished: Boolean = true,
     val createdAt: String = ""
 )
