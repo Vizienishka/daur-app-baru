@@ -30,6 +30,7 @@ fun DaurNavGraph(context: Context, startDestination: String = Routes.SPLASH) {
             // Redirect ke login, hapus semua back stack
             navController.navigate(Routes.LOGIN) {
                 popUpTo(0) { inclusive = true }
+                
             }
         }
     }
