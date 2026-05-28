@@ -1,6 +1,5 @@
 package com.daur.app.ui.screens
 
-import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
@@ -48,7 +47,7 @@ import com.daur.app.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SetorSampahScreen(vm: SetorViewModel = viewModel()) {
+fun SetorSampahScreen(vm: SetorViewModel = viewModel(), onSelesai: () -> Unit) {
     val context       = LocalContext.current
     val katalogState  by vm.katalogState.collectAsState()
     val submitState   by vm.submitState.collectAsState()

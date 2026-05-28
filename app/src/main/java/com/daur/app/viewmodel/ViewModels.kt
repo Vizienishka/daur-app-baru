@@ -185,6 +185,10 @@ class RiwayatViewModel : ViewModel() {
     private val _selectedFilter = MutableStateFlow("Semua")
     val selectedFilter: StateFlow<String> = _selectedFilter.asStateFlow()
 
+    // ── State untuk proses delete ──────────────────────────
+    private val _deleteState = MutableStateFlow<UiState<Unit>?>(null)
+    val deleteState: StateFlow<UiState<Unit>?> = _deleteState.asStateFlow()
+
     private var allItems: List<Setoran> = emptyList()
 
     val filters = listOf("Semua", "menunggu", "diproses", "selesai", "ditolak")
@@ -210,6 +214,25 @@ class RiwayatViewModel : ViewModel() {
     }
 
     fun setFilter(f: String) { _selectedFilter.value = f; applyFilter() }
+
+    fun deleteSetoran(setoranId: String, onDeleted: () -> Unit = {}) {
+        viewModelScope.launch {
+            _deleteState.value = UiState.Loading
+            SupabaseClient.deleteSetoran(setoranId, SessionManager.accessToken)
+                .onSuccess {
+                    // Hapus dari list lokal tanpa perlu reload penuh
+                    allItems = allItems.filter { it.id != setoranId }
+                    applyFilter()
+                    _deleteState.value = UiState.Success(Unit)
+                    onDeleted()
+                }
+                .onFailure {
+                    _deleteState.value = UiState.Error(it.message ?: "Gagal menghapus setoran")
+                }
+        }
+    }
+
+    fun resetDelete() { _deleteState.value = null }
 
     private fun applyFilter() {
         val f = _selectedFilter.value

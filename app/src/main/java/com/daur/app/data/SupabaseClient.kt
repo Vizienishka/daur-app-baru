@@ -101,6 +101,88 @@ object SupabaseClient {
         }
     }
 
+    // ── DELETE ─────────────────────────────────────────────
+    private suspend fun delete(
+        path: String,
+        token: String? = null,
+        params: Map<String, String> = emptyMap()
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val effectiveToken = token?.takeIf { it.isNotBlank() } ?: ANON_KEY
+            val query = if (params.isEmpty()) ""
+            else "?" + params.entries.joinToString("&") { "${it.key}=${it.value}" }
+            val url = URL("$BASE_URL/rest/v1$path$query")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "DELETE"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                setRequestProperty("apikey", ANON_KEY)
+                setRequestProperty("Authorization", "Bearer $effectiveToken")
+                setRequestProperty("Content-Type", "application/json")
+            }
+            val code = conn.responseCode
+            val body = try {
+                conn.inputStream.bufferedReader().readText()
+            } catch (_: Exception) {
+                conn.errorStream?.bufferedReader()?.readText() ?: ""
+            }
+            conn.disconnect()
+            if (code in 200..299) {
+                Result.success(Unit)
+            } else {
+                val msg = when (code) {
+                    401  -> { SessionManager.notifySessionExpired(); "Sesi habis, silakan login ulang" }
+                    403  -> "Akses ditolak — cek RLS policy"
+                    404  -> "Data tidak ditemukan"
+                    else -> "Gagal menghapus (kode: $code): $body"
+                }
+                Result.failure(Exception(msg))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception(networkError(e)))
+        }
+    }
+
+    // ── DELETE SETORAN via RPC (aman, bypass API DISABLED) ─
+    suspend fun deleteSetoran(setoranId: String, token: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val effectiveToken = token.takeIf { it.isNotBlank() } ?: ANON_KEY
+                val url  = URL("$BASE_URL/rest/v1/rpc/delete_setoran")
+                val body = JSONObject().put("p_setoran_id", setoranId).toString()
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 10_000
+                    readTimeout    = 10_000
+                    setRequestProperty("apikey",        ANON_KEY)
+                    setRequestProperty("Authorization", "Bearer $effectiveToken")
+                    setRequestProperty("Content-Type",  "application/json")
+                    doOutput = true
+                    outputStream.write(body.toByteArray())
+                }
+                val code = conn.responseCode
+                val resp = try {
+                    conn.inputStream.bufferedReader().readText()
+                } catch (_: Exception) {
+                    conn.errorStream?.bufferedReader()?.readText() ?: ""
+                }
+                conn.disconnect()
+                if (code in 200..299) {
+                    Result.success(Unit)
+                } else {
+                    val msg = when (code) {
+                        401  -> { SessionManager.notifySessionExpired(); "Sesi habis, silakan login ulang" }
+                        403  -> "Akses ditolak — pastikan kamu pemilik setoran ini"
+                        404  -> "Setoran tidak ditemukan"
+                        else -> "Gagal menghapus (kode: $code): $resp"
+                    }
+                    Result.failure(Exception(msg))
+                }
+            } catch (e: Exception) {
+                Result.failure(Exception(networkError(e)))
+            }
+        }
+
     // ── UPLOAD FOTO ke Supabase Storage ───────────────────
     suspend fun uploadFoto(
         bitmap: Bitmap,
