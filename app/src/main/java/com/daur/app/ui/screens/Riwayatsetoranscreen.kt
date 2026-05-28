@@ -35,10 +35,72 @@ import com.daur.app.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RiwayatSetoranScreen(vm: RiwayatViewModel = viewModel()) {
+fun RiwayatSetoranScreen(vm: RiwayatViewModel = viewModel(), onDeleted: () -> Unit = {}) {
     val state by vm.state.collectAsState()
     val selectedFilter by vm.selectedFilter.collectAsState()
+    val deleteState by vm.deleteState.collectAsState()
     var expandedId by remember { mutableStateOf<String?>(null) }
+    var confirmDeleteId by remember { mutableStateOf<String?>(null) }  // ID yang mau dihapus
+
+    // Reload data setiap kali screen ini dibuka/ditampilkan
+    LaunchedEffect(Unit) { vm.load() }
+
+    // ── Snackbar untuk hasil delete ────────────────────────
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(deleteState) {
+        when (val s = deleteState) {
+            is UiState.Success -> {
+                snackbarHostState.showSnackbar("✅ Setoran berhasil dihapus")
+                vm.resetDelete()
+                onDeleted()
+            }
+            is UiState.Error -> {
+                snackbarHostState.showSnackbar("❌ ${s.message}")
+                vm.resetDelete()
+            }
+            else -> {}
+        }
+    }
+
+    // ── Confirmation dialog ────────────────────────────────
+    confirmDeleteId?.let { idToDelete ->
+        AlertDialog(
+            onDismissRequest = { confirmDeleteId = null },
+            icon = {
+                Icon(
+                    Icons.Outlined.DeleteForever,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = { Text("Hapus Setoran?", fontWeight = FontWeight.SemiBold) },
+            text  = {
+                Text(
+                    "Data setoran ini akan dihapus permanen dan tidak bisa dikembalikan.",
+                    fontSize = 14.sp, color = OnSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.deleteSetoran(idToDelete)
+                        confirmDeleteId = null
+                        expandedId = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Hapus", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirmDeleteId = null }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
 
     // FIX: ganti Scaffold dengan Column biasa supaya tidak double padding
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
@@ -46,80 +108,101 @@ fun RiwayatSetoranScreen(vm: RiwayatViewModel = viewModel()) {
             title = { Text("Riwayat", fontWeight = FontWeight.Bold, color = Primary, fontSize = 20.sp) },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
         )
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 32.dp)
-        ) {
-            // ── Header ──────────────────────────────────
-            item {
-                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                    Text("Aktivitas Setoran", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = OnSurface)
-                    Text("Lacak kontribusi lingkungan kamu.", fontSize = 14.sp, color = OnSurfaceVariant)
-                }
-            }
 
-            // ── Filter chips ─────────────────────────────
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 12.dp)
-                ) {
-                    items(vm.filters) { filter ->
-                        val isSelected = selectedFilter == filter
-                        val label = vm.filterLabels[filter] ?: filter
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(if (isSelected) Primary else SurfaceContainer)
-                                .border(1.dp, if (isSelected) Color.Transparent else OutlineVariant, CircleShape)
-                                .clickable { vm.setFilter(filter) }
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                                color = if (isSelected) Color.White else OnSurfaceVariant)
+        // ── Loading overlay saat delete sedang diproses ───
+        if (deleteState is UiState.Loading) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color    = Primary
+            )
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 32.dp)
+            ) {
+                // ── Header ──────────────────────────────────
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                        Text("Aktivitas Setoran", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = OnSurface)
+                        Text("Lacak kontribusi lingkungan kamu.", fontSize = 14.sp, color = OnSurfaceVariant)
+                    }
+                }
+
+                // ── Filter chips ─────────────────────────────
+                item {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    ) {
+                        items(vm.filters) { filter ->
+                            val isSelected = selectedFilter == filter
+                            val label = vm.filterLabels[filter] ?: filter
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) Primary else SurfaceContainer)
+                                    .border(1.dp, if (isSelected) Color.Transparent else OutlineVariant, CircleShape)
+                                    .clickable { vm.setFilter(filter) }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                    color = if (isSelected) Color.White else OnSurfaceVariant)
+                            }
                         }
                     }
                 }
-            }
 
-            // ── Content ───────────────────────────────────
-            when (val s = state) {
-                is UiState.Loading -> item {
-                    Box(Modifier.fillMaxWidth().padding(top = 64.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Primary)
+                // ── Content ───────────────────────────────────
+                when (val s = state) {
+                    is UiState.Loading -> item {
+                        Box(Modifier.fillMaxWidth().padding(top = 64.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Primary)
+                        }
+                    }
+                    is UiState.Empty -> item {
+                        EmptyState(
+                            icon    = Icons.Outlined.Inbox,
+                            title   = "Belum ada riwayat",
+                            message = "Mulai setor sampah pertamamu dan jejak kontribusimu akan muncul di sini."
+                        )
+                    }
+                    is UiState.Error -> item {
+                        EmptyState(
+                            icon    = Icons.Outlined.ErrorOutline,
+                            title   = "Gagal memuat",
+                            message = s.message,
+                            isError = true,
+                            onRetry = { vm.load() }
+                        )
+                    }
+                    is UiState.Success -> items(s.data, key = { it.id }) { setoran ->
+                        SetoranCard(
+                            setoran    = setoran,
+                            isExpanded = expandedId == setoran.id,
+                            onToggle   = { expandedId = if (expandedId == setoran.id) null else setoran.id },
+                            onDelete   = { confirmDeleteId = setoran.id }
+                        )
                     }
                 }
-                is UiState.Empty -> item {
-                    EmptyState(
-                        icon    = Icons.Outlined.Inbox,
-                        title   = "Belum ada riwayat",
-                        message = "Mulai setor sampah pertamamu dan jejak kontribusimu akan muncul di sini."
-                    )
-                }
-                is UiState.Error -> item {
-                    EmptyState(
-                        icon    = Icons.Outlined.ErrorOutline,
-                        title   = "Gagal memuat",
-                        message = s.message,
-                        isError = true,
-                        onRetry = { vm.load() }
-                    )
-                }
-                is UiState.Success -> items(s.data, key = { it.id }) { setoran ->
-                    SetoranCard(
-                        setoran    = setoran,
-                        isExpanded = expandedId == setoran.id,
-                        onToggle   = { expandedId = if (expandedId == setoran.id) null else setoran.id }
-                    )
-                }
             }
-        }
+        } // end Box
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier  = Modifier.padding(bottom = 8.dp)
+        )
     }
 }
 
 @Composable
-private fun SetoranCard(setoran: Setoran, isExpanded: Boolean, onToggle: () -> Unit) {
+private fun SetoranCard(
+    setoran: Setoran,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit
+) {
     val rotate by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = tween(200), label = "rotate"
@@ -174,8 +257,23 @@ private fun SetoranCard(setoran: Setoran, isExpanded: Boolean, onToggle: () -> U
                         Text("+${setoran.totalPoin} Pts", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Primary)
                     else
                         Text("— Pts", fontSize = 15.sp, color = OnSurfaceVariant)
-                    Icon(Icons.Filled.ExpandMore, contentDescription = null,
-                        tint = OnSurfaceVariant, modifier = Modifier.size(22.dp).rotate(rotate))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.ExpandMore, contentDescription = null,
+                            tint = OnSurfaceVariant, modifier = Modifier.size(22.dp).rotate(rotate))
+                        Spacer(Modifier.width(4.dp))
+                        // ── Tombol Delete ──────────────────
+                        IconButton(
+                            onClick  = onDelete,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Delete,
+                                contentDescription = "Hapus setoran",
+                                tint     = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
             }
 

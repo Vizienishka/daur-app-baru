@@ -101,6 +101,88 @@ object SupabaseClient {
         }
     }
 
+    // ── DELETE ─────────────────────────────────────────────
+    private suspend fun delete(
+        path: String,
+        token: String? = null,
+        params: Map<String, String> = emptyMap()
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val effectiveToken = token?.takeIf { it.isNotBlank() } ?: ANON_KEY
+            val query = if (params.isEmpty()) ""
+            else "?" + params.entries.joinToString("&") { "${it.key}=${it.value}" }
+            val url = URL("$BASE_URL/rest/v1$path$query")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "DELETE"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                setRequestProperty("apikey", ANON_KEY)
+                setRequestProperty("Authorization", "Bearer $effectiveToken")
+                setRequestProperty("Content-Type", "application/json")
+            }
+            val code = conn.responseCode
+            val body = try {
+                conn.inputStream.bufferedReader().readText()
+            } catch (_: Exception) {
+                conn.errorStream?.bufferedReader()?.readText() ?: ""
+            }
+            conn.disconnect()
+            if (code in 200..299) {
+                Result.success(Unit)
+            } else {
+                val msg = when (code) {
+                    401  -> { SessionManager.notifySessionExpired(); "Sesi habis, silakan login ulang" }
+                    403  -> "Akses ditolak — cek RLS policy"
+                    404  -> "Data tidak ditemukan"
+                    else -> "Gagal menghapus (kode: $code): $body"
+                }
+                Result.failure(Exception(msg))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception(networkError(e)))
+        }
+    }
+
+    // ── DELETE SETORAN via RPC (aman, bypass API DISABLED) ─
+    suspend fun deleteSetoran(setoranId: String, token: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val effectiveToken = token.takeIf { it.isNotBlank() } ?: ANON_KEY
+                val url  = URL("$BASE_URL/rest/v1/rpc/delete_setoran")
+                val body = JSONObject().put("p_setoran_id", setoranId).toString()
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 10_000
+                    readTimeout    = 10_000
+                    setRequestProperty("apikey",        ANON_KEY)
+                    setRequestProperty("Authorization", "Bearer $effectiveToken")
+                    setRequestProperty("Content-Type",  "application/json")
+                    doOutput = true
+                    outputStream.write(body.toByteArray())
+                }
+                val code = conn.responseCode
+                val resp = try {
+                    conn.inputStream.bufferedReader().readText()
+                } catch (_: Exception) {
+                    conn.errorStream?.bufferedReader()?.readText() ?: ""
+                }
+                conn.disconnect()
+                if (code in 200..299) {
+                    Result.success(Unit)
+                } else {
+                    val msg = when (code) {
+                        401  -> { SessionManager.notifySessionExpired(); "Sesi habis, silakan login ulang" }
+                        403  -> "Akses ditolak — pastikan kamu pemilik setoran ini"
+                        404  -> "Setoran tidak ditemukan"
+                        else -> "Gagal menghapus (kode: $code): $resp"
+                    }
+                    Result.failure(Exception(msg))
+                }
+            } catch (e: Exception) {
+                Result.failure(Exception(networkError(e)))
+            }
+        }
+
     // ── UPLOAD FOTO ke Supabase Storage ───────────────────
     suspend fun uploadFoto(
         bitmap: Bitmap,
@@ -258,6 +340,50 @@ object SupabaseClient {
         }
     }
 
+    suspend fun getUserVouchers(
+        userId: String,
+        token: String? = null
+    ): Result<List<UserVoucher>> {
+        val params = mutableMapOf(
+            "user_id" to "eq.$userId",
+            "select" to "*,voucher(*)",
+            "order" to "created_at.desc"
+        )
+        return get("/user_voucher", token, params).map { json ->
+            JSONArray(json).toList { it.toUserVoucher() }
+        }
+    }
+
+    suspend fun klaimVoucherKode(
+        userId: String,
+        kode: String,
+        token: String
+    ): Result<Unit> {
+        // 1. Cek voucher
+        val cekParams = mapOf("kode" to "eq.$kode", "is_active" to "eq.true")
+        val voucherList = get("/voucher", token, cekParams).map { json ->
+            JSONArray(json).toList { it.toVoucher() }
+        }.getOrElse { return Result.failure(it) }
+
+        if (voucherList.isEmpty()) {
+            return Result.failure(Exception("Kode voucher tidak valid atau tidak aktif"))
+        }
+
+        val voucher = voucherList.first()
+        if (voucher.kuota > 0 && voucher.kuotaTerpakai >= voucher.kuota) {
+            return Result.failure(Exception("Kuota voucher sudah habis"))
+        }
+
+        // 2. Insert ke user_voucher
+        val body = JSONObject().apply {
+            put("user_id", userId)
+            put("voucher_id", voucher.id)
+            put("status", "belum_digunakan")
+        }.toString()
+        
+        return post("/user_voucher", body, token).map { }
+    }
+
     suspend fun tukarPoin(
         userId: String,
         rewardId: String,
@@ -367,3 +493,27 @@ private fun JSONObject.toEdukasi() = Edukasi(
     isPublished = optBoolean("is_published", true),
     createdAt   = optString("created_at")
 )
+
+private fun JSONObject.toVoucher() = Voucher(
+    id            = optString("id"),
+    kode          = optString("kode"),
+    nama          = optString("nama"),
+    deskripsi     = optString("deskripsi").takeIf { it != "null" } ?: "",
+    tipeDiskon    = optString("tipe_diskon"),
+    nilaiDiskon   = optDouble("nilai_diskon", 0.0),
+    kuota         = optInt("kuota", 0),
+    kuotaTerpakai = optInt("kuota_terpakai", 0),
+    isActive      = optBoolean("is_active", true),
+    createdAt     = optString("created_at"),
+    updatedAt     = optString("updated_at")
+)
+
+private fun JSONObject.toUserVoucher() = UserVoucher(
+    id            = optString("id"),
+    userId        = optString("user_id"),
+    voucherId     = optString("voucher_id"),
+    status        = optString("status"),
+    digunakanPada = optString("digunakan_pada").takeIf { it != "null" } ?: "",
+    createdAt     = optString("created_at"),
+    voucher       = if (has("voucher") && !isNull("voucher")) getJSONObject("voucher").toVoucher() else null
+)

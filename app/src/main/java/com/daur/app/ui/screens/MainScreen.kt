@@ -61,6 +61,12 @@ fun MainScreen(onLogout: () -> Unit = {}) {
                                 "edukasi" -> edukasiVm.load()
                             }
                         } else {
+                            // Reload data saat pindah ke tab baru
+                            when (route) {
+                                "beranda" -> berandaVm.load()
+                                "riwayat" -> riwayatVm.load()
+                                "hadiah"  -> hadiahVm.load()
+                            }
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
@@ -89,10 +95,19 @@ fun MainScreen(onLogout: () -> Unit = {}) {
                 )
             }
             composable("setor") {
-                SetorSampahScreen(vm = setorVm)
+                SetorSampahScreen(
+                    vm        = setorVm,
+                    onSelesai = {
+                        berandaVm.load()
+                        riwayatVm.load()
+                    }
+                )
             }
             composable("riwayat") {
-                RiwayatSetoranScreen(vm = riwayatVm)
+                RiwayatSetoranScreen(
+                    vm        = riwayatVm,
+                    onDeleted = { berandaVm.load() }
+                )
             }
             composable("hadiah") {
                 TukarPoinScreen(vm = hadiahVm)
