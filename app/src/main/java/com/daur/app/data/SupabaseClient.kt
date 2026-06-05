@@ -544,7 +544,7 @@ object SupabaseClient {
     ): Result<List<Edukasi>> {
         val params = mutableMapOf(
             "is_published" to "eq.true",
-            "select" to "*",
+            "select" to "*,edukasi_likes(count)",
             "order" to "created_at.desc"
         )
         if (kategori != null && kategori != "Semua") {
@@ -555,6 +555,26 @@ object SupabaseClient {
         }
         return get("/edukasi", token, params).map { json ->
             JSONArray(json).toList { it.toEdukasi() }
+        }
+    }
+
+    suspend fun getLikedEdukasiIds(userId: String, token: String): Result<List<String>> {
+        return get("/edukasi_likes", token, mapOf("user_id" to "eq.$userId", "select" to "edukasi_id"))
+            .map { json ->
+                val arr = JSONArray(json)
+                (0 until arr.length()).map { arr.getJSONObject(it).getString("edukasi_id") }
+            }
+    }
+
+    suspend fun toggleLike(edukasiId: String, userId: String, isLiked: Boolean, token: String): Result<Unit> {
+        return if (isLiked) {
+            delete("/edukasi_likes", token, mapOf("edukasi_id" to "eq.$edukasiId", "user_id" to "eq.$userId"))
+        } else {
+            val body = JSONObject().apply {
+                put("edukasi_id", edukasiId)
+                put("user_id", userId)
+            }.toString()
+            post("/edukasi_likes", body, token).map { }
         }
     }
 
@@ -619,16 +639,24 @@ private fun JSONObject.toReward() = Reward(
     isActive       = optBoolean("is_active", true)
 )
 
-private fun JSONObject.toEdukasi() = Edukasi(
-    id          = optString("id"),
-    judul       = optString("judul"),
-    konten      = optString("konten"),
-    ringkasan   = optString("ringkasan"),
-    gambarUrl   = optString("gambar_url"),
-    kategori    = optString("kategori"),
-    isPublished = optBoolean("is_published", true),
-    createdAt   = optString("created_at")
-)
+private fun JSONObject.toEdukasi(): Edukasi {
+    val likesArray = optJSONArray("edukasi_likes")
+    val count = if (likesArray != null && likesArray.length() > 0) {
+        likesArray.getJSONObject(0).optInt("count", 0)
+    } else 0
+
+    return Edukasi(
+        id          = optString("id"),
+        judul       = optString("judul"),
+        konten      = optString("konten"),
+        ringkasan   = optString("ringkasan"),
+        gambarUrl   = optString("gambar_url"),
+        kategori    = optString("kategori"),
+        isPublished = optBoolean("is_published", true),
+        createdAt   = optString("created_at"),
+        totalLikes  = count
+    )
+}
 
 private fun JSONObject.toVoucher() = Voucher(
     id            = optString("id"),

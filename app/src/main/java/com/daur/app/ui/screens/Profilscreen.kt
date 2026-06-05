@@ -97,19 +97,9 @@ private fun ProfilContent(profile: Profile, onLogout: () -> Unit, onMyVoucher: (
                                 color = Primary
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(Primary),
-                            contentAlignment = Alignment.Center
-                        ) { Icon(Icons.Filled.CameraAlt, contentDescription = "Ganti foto", tint = Color.White, modifier = Modifier.size(16.dp)) }
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(profile.namaLengkap.ifEmpty { "Pengguna Daur" }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = OnSurface)
-                    if (profile.noTelepon.isNotEmpty())
-                        Text(profile.noTelepon, fontSize = 14.sp, color = OnSurfaceVariant)
                 }
             }
         }

@@ -186,7 +186,8 @@ fun EdukasiLingkunganScreen(
                                 edukasi = s.data.first(),
                                 onClick = {
                                     navController.navigate("edukasi_detail/${s.data.first().id}")
-                                }
+                                },
+                                onLikeClick = { vm.toggleLike(s.data.first().id) }
                             )
                         }
                     }
@@ -195,7 +196,8 @@ fun EdukasiLingkunganScreen(
                         items(s.data.drop(1), key = { it.id }) { edukasi ->
                             ArtikelCard(
                                 edukasi = edukasi,
-                                onClick = { navController.navigate("edukasi_detail/${edukasi.id}") }
+                                onClick = { navController.navigate("edukasi_detail/${edukasi.id}") },
+                                onLikeClick = { vm.toggleLike(edukasi.id) }
                             )
                         }
                     }
@@ -285,6 +287,17 @@ fun EdukasiDetailScreen(
                             Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = Outline, modifier = Modifier.size(14.dp))
                             val tanggal = edukasi.createdAt.take(10).replace("-", "/").ifEmpty { "—" }
                             Text(tanggal, fontSize = 12.sp, color = Outline)
+                            
+                            IconButton(onClick = { vm.toggleLike(edukasi.id) }, modifier = Modifier.size(24.dp)) {
+                                Icon(
+                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, 
+                                    contentDescription = "Like", 
+                                    tint = if (edukasi.isLiked) Error else Outline, 
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Text("${edukasi.totalLikes} Suka", fontSize = 12.sp, color = Outline)
+                            
                             Spacer(Modifier.width(4.dp))
                             // Estimasi baca
                             val wordCount = edukasi.konten.split(" ").size
@@ -348,7 +361,7 @@ fun EdukasiDetailScreen(
 
 // ── Artikel Cards ──────────────────────────────────────────
 @Composable
-private fun FeaturedArtikelCard(edukasi: Edukasi, onClick: () -> Unit) {
+private fun FeaturedArtikelCard(edukasi: Edukasi, onClick: () -> Unit, onLikeClick: () -> Unit) {
     Card(
         modifier  = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp).clickable { onClick() },
         shape     = RoundedCornerShape(20.dp),
@@ -382,7 +395,20 @@ private fun FeaturedArtikelCard(edukasi: Edukasi, onClick: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val tanggal = edukasi.createdAt.take(10).replace("-", "/").ifEmpty { "—" }
-                    Text(tanggal, fontSize = 12.sp, color = Outline)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(tanggal, fontSize = 12.sp, color = Outline)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onLikeClick, modifier = Modifier.size(24.dp)) {
+                                Icon(
+                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, 
+                                    contentDescription = "Like", 
+                                    tint = if (edukasi.isLiked) Error else Outline, 
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Text("${edukasi.totalLikes}", fontSize = 12.sp, color = Outline)
+                        }
+                    }
                     Box(
                         modifier = Modifier.clip(CircleShape).background(Primary).padding(horizontal = 14.dp, vertical = 6.dp)
                     ) { Text("Baca →", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White) }
@@ -393,7 +419,7 @@ private fun FeaturedArtikelCard(edukasi: Edukasi, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ArtikelCard(edukasi: Edukasi, onClick: () -> Unit) {
+private fun ArtikelCard(edukasi: Edukasi, onClick: () -> Unit, onLikeClick: () -> Unit) {
     Card(
         modifier  = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 5.dp).clickable { onClick() },
         shape     = RoundedCornerShape(16.dp),
@@ -430,7 +456,20 @@ private fun ArtikelCard(edukasi: Edukasi, onClick: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val tanggal = edukasi.createdAt.take(10).replace("-", "/").ifEmpty { "—" }
-                    Text(tanggal, fontSize = 11.sp, color = Outline)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(tanggal, fontSize = 11.sp, color = Outline)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onLikeClick, modifier = Modifier.size(24.dp)) {
+                                Icon(
+                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, 
+                                    contentDescription = "Like", 
+                                    tint = if (edukasi.isLiked) Error else Outline, 
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            Text("${edukasi.totalLikes}", fontSize = 11.sp, color = Outline)
+                        }
+                    }
                     Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Primary, modifier = Modifier.size(18.dp))
                 }
             }

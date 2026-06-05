@@ -262,16 +262,18 @@ private fun SetoranCard(
                             tint = OnSurfaceVariant, modifier = Modifier.size(22.dp).rotate(rotate))
                         Spacer(Modifier.width(4.dp))
                         // ── Tombol Delete ──────────────────
-                        IconButton(
-                            onClick  = onDelete,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.Delete,
-                                contentDescription = "Hapus setoran",
-                                tint     = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
-                            )
+                        if (setoran.status == "menunggu" || setoran.status == "ditolak") {
+                            IconButton(
+                                onClick  = onDelete,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Delete,
+                                    contentDescription = "Hapus setoran",
+                                    tint     = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }

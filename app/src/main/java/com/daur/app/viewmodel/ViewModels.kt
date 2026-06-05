@@ -369,9 +369,62 @@ class EdukasiViewModel : ViewModel() {
     fun load() {
         viewModelScope.launch {
             _state.value = UiState.Loading
-            SupabaseClient.getEdukasi(SessionManager.accessToken)
-                .onSuccess { allItems = it; applyFilter() }
-                .onFailure { _state.value = UiState.Error(it.message ?: "Gagal memuat edukasi") }
+            val token = SessionManager.accessToken
+            val userId = SessionManager.userId
+
+            try {
+                // Fetch articles
+                val edukasiResult = SupabaseClient.getEdukasi(token)
+                if (edukasiResult.isFailure) throw edukasiResult.exceptionOrNull()!!
+
+                var articles = edukasiResult.getOrNull() ?: emptyList()
+
+                // Fetch user likes if logged in
+                if (userId.isNotEmpty()) {
+                    val likesResult = SupabaseClient.getLikedEdukasiIds(userId, token)
+                    if (likesResult.isSuccess) {
+                        val likedIds = likesResult.getOrNull() ?: emptyList()
+                        articles = articles.map {
+                            it.copy(isLiked = likedIds.contains(it.id))
+                        }
+                    }
+                }
+
+                allItems = articles
+                applyFilter()
+            } catch (e: Exception) {
+                _state.value = UiState.Error(e.message ?: "Gagal memuat edukasi")
+            }
+        }
+    }
+
+    fun toggleLike(edukasiId: String) {
+        val userId = SessionManager.userId
+        val token = SessionManager.accessToken
+        if (userId.isEmpty()) return
+
+        // Optimistic UI update
+        val target = allItems.find { it.id == edukasiId } ?: return
+        val currentlyLiked = target.isLiked
+        val newLikeCount = if (currentlyLiked) target.totalLikes - 1 else target.totalLikes + 1
+
+        allItems = allItems.map {
+            if (it.id == edukasiId) it.copy(isLiked = !currentlyLiked, totalLikes = newLikeCount)
+            else it
+        }
+        applyFilter()
+
+        // API call
+        viewModelScope.launch {
+            val result = SupabaseClient.toggleLike(edukasiId, userId, currentlyLiked, token)
+            if (result.isFailure) {
+                // Revert UI if failed
+                allItems = allItems.map {
+                    if (it.id == edukasiId) target
+                    else it
+                }
+                applyFilter()
+            }
         }
     }
 

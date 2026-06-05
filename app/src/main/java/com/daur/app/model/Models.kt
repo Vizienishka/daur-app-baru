@@ -81,7 +81,9 @@ data class Edukasi(
     val gambarUrl: String = "",
     val kategori: String = "",
     val isPublished: Boolean = true,
-    val createdAt: String = ""
+    val createdAt: String = "",
+    val totalLikes: Int = 0,
+    val isLiked: Boolean = false
 )
 
 // ── Voucher (tabel: voucher) ───────────────────────────────
