@@ -57,7 +57,10 @@ fun MainScreen(onLogout: () -> Unit = {}) {
                                 "beranda" -> berandaVm.load()
                                 "riwayat" -> riwayatVm.load()
                                 "setor"   -> setorVm.loadKatalog()
-                                "hadiah"  -> hadiahVm.load()
+                                "hadiah"  -> {
+                                    hadiahVm.load()
+                                    berandaVm.load()
+                                }
                                 "edukasi" -> edukasiVm.load()
                             }
                         } else {
@@ -65,7 +68,10 @@ fun MainScreen(onLogout: () -> Unit = {}) {
                             when (route) {
                                 "beranda" -> berandaVm.load()
                                 "riwayat" -> riwayatVm.load()
-                                "hadiah"  -> hadiahVm.load()
+                                "hadiah"  -> {
+                                    hadiahVm.load()
+                                    berandaVm.load()
+                                }
                             }
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
@@ -110,7 +116,23 @@ fun MainScreen(onLogout: () -> Unit = {}) {
                 )
             }
             composable("hadiah") {
-                TukarPoinScreen(vm = hadiahVm)
+                val berandaState by berandaVm.state.collectAsState()
+                val userPoin = (berandaState as? BerandaState.Success)?.data?.profile?.totalPoin ?: 0
+                TukarPoinScreen(
+                    userPoin = userPoin,
+                    onNavigateToMyVoucher = { 
+                        berandaVm.load()
+                        navController.navigate("my_voucher") 
+                    },
+                    vm = hadiahVm
+                )
+            }
+            composable("my_voucher") {
+                val myVoucherVm: MyVoucherViewModel = viewModel()
+                MyVoucherScreen(
+                    onBack = { navController.popBackStack() },
+                    vm = myVoucherVm
+                )
             }
             composable("katalog") {
                 KatalogSampahScreen()
@@ -132,7 +154,10 @@ fun MainScreen(onLogout: () -> Unit = {}) {
                 )
             }
             composable("profil") {
-                ProfilScreen(onLogout = onLogout)
+                ProfilScreen(
+                    onLogout = onLogout,
+                    onMyVoucher = { navController.navigate("my_voucher") }
+                )
             }
         }
     }

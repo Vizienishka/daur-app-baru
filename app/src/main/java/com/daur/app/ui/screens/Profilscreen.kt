@@ -31,6 +31,7 @@ import com.daur.app.viewmodel.UiState
 @Composable
 fun ProfilScreen(
     onLogout: () -> Unit,
+    onMyVoucher: () -> Unit = {},
     vm: ProfilViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
@@ -52,7 +53,7 @@ fun ProfilScreen(
             is UiState.Success -> ProfilContent(profile = s.data, onLogout = {
                 vm.logout(context)
                 onLogout()
-            })
+            }, onMyVoucher = onMyVoucher)
             else -> {}
         }
     }
@@ -60,7 +61,7 @@ fun ProfilScreen(
 
 
 @Composable
-private fun ProfilContent(profile: Profile, onLogout: () -> Unit) {
+private fun ProfilContent(profile: Profile, onLogout: () -> Unit, onMyVoucher: () -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 40.dp)
@@ -170,6 +171,7 @@ private fun ProfilContent(profile: Profile, onLogout: () -> Unit) {
                 Text("Pengaturan", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Primary,
                     modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SettingRow(icon = Icons.Outlined.LocalOffer, label = "Voucher Saya", onClick = onMyVoucher)
                     SettingRow(icon = Icons.Outlined.Person, label = "Edit Profil", onClick = {})
                     SettingRow(icon = Icons.Outlined.Notifications, label = "Notifikasi", onClick = {})
                     SettingRow(icon = Icons.Outlined.Lock, label = "Ubah Password", onClick = {})

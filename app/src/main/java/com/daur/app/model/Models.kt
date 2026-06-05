@@ -68,7 +68,8 @@ data class PenukaranPoin(
     val kodeTukar: String = "",
     val poinDigunakan: Int = 0,
     val status: String = "menunggu",
-    val createdAt: String = ""
+    val createdAt: String = "",
+    val reward: Reward? = null
 )
 
 // ── Edukasi (tabel: edukasi) ───────────────────────────────

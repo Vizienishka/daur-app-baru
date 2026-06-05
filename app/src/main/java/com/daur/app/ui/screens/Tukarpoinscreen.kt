@@ -26,63 +26,47 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.daur.app.model.UserVoucher
+import com.daur.app.model.Reward
 import com.daur.app.ui.theme.*
-import com.daur.app.ui.components.VoucherDetailSheet
 import com.daur.app.viewmodel.TukarPoinViewModel
 import com.daur.app.viewmodel.UiState
 import com.daur.app.data.SessionManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TukarPoinScreen(vm: TukarPoinViewModel = viewModel()) {
+fun TukarPoinScreen(
+    userPoin: Int,
+    onNavigateToMyVoucher: () -> Unit,
+    vm: TukarPoinViewModel = viewModel()
+) {
     val state by vm.state.collectAsState()
     val selectedKategori by vm.selectedKategori.collectAsState()
-    val klaimState by vm.klaimState.collectAsState()
-    val gunakanState by vm.gunakanState.collectAsState()
+    val tukarState by vm.tukarState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var showDialog by remember { mutableStateOf(false) }
-    var inputKode by remember { mutableStateOf("") }
-    var selectedVoucher by remember { mutableStateOf<UserVoucher?>(null) }
-    val sheetState = rememberModalBottomSheetState()
+    var selectedReward by remember { mutableStateOf<Reward?>(null) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(klaimState) {
-        when (val t = klaimState) {
+    LaunchedEffect(tukarState) {
+        when (val t = tukarState) {
             is UiState.Success -> {
-                snackbarHostState.showSnackbar("✅ Voucher berhasil diklaim!")
-                vm.resetKlaim()
-                showDialog = false
-                inputKode = ""
+                vm.resetTukar()
+                showConfirmDialog = false
+                selectedReward = null
+                onNavigateToMyVoucher()
             }
-            is UiState.Error   -> { snackbarHostState.showSnackbar("❌ ${t.message}"); vm.resetKlaim() }
+            is UiState.Error -> {
+                snackbarHostState.showSnackbar("❌ ${t.message}")
+                vm.resetTukar()
+            }
             else -> {}
         }
     }
 
-    LaunchedEffect(gunakanState) {
-        when (val t = gunakanState) {
-            is UiState.Success -> {
-                snackbarHostState.showSnackbar("✅ Voucher berhasil digunakan dan dihapus!")
-                vm.resetGunakan()
-                selectedVoucher = null
-            }
-            is UiState.Error   -> { snackbarHostState.showSnackbar("❌ ${t.message}"); vm.resetGunakan() }
-            else -> {}
-        }
-    }
-
-    // FIX: Box + Column menggantikan Scaffold agar tidak double padding
-    // SnackbarHost diletakkan sebagai overlay di dalam Box
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().background(Background)) {
             TopAppBar(
-                title = { Text("Voucher Saya", fontWeight = FontWeight.Bold, color = Primary, fontSize = 20.sp) },
-                actions = {
-                    TextButton(onClick = { showDialog = true }) {
-                        Text("+ Tambah", color = Primary, fontWeight = FontWeight.Bold)
-                    }
-                },
+                title = { Text("Katalog Hadiah", fontWeight = FontWeight.Bold, color = Primary, fontSize = 20.sp) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface)
             )
             LazyColumn(
@@ -102,11 +86,11 @@ fun TukarPoinScreen(vm: TukarPoinViewModel = viewModel()) {
                         Box(modifier = Modifier.size(128.dp).align(Alignment.TopEnd).offset(x = 32.dp, y = (-32).dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)))
                         Box(modifier = Modifier.size(80.dp).align(Alignment.BottomStart).offset(x = (-20).dp, y = 20.dp).clip(CircleShape).background(Secondary.copy(alpha = 0.15f)))
                         Column {
-                            Text("Saldo Poin Anda", fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f))
+                            Text("Tukar Poin Anda", fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f))
                             Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Icon(Icons.Filled.Stars, contentDescription = null, tint = Color(0xFFFCAA33), modifier = Modifier.size(30.dp))
-                                Text("— Poin", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("%,d".format(userPoin), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
                             Spacer(Modifier.height(10.dp))
                             Box(
@@ -117,7 +101,7 @@ fun TukarPoinScreen(vm: TukarPoinViewModel = viewModel()) {
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Icon(Icons.Outlined.Info, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
-                                    Text("Poin bertambah otomatis setiap setoran selesai", fontSize = 11.sp, color = Color.White)
+                                    Text("Pilih hadiah dan gunakan poin Anda", fontSize = 11.sp, color = Color.White)
                                 }
                             }
                         }
@@ -153,7 +137,7 @@ fun TukarPoinScreen(vm: TukarPoinViewModel = viewModel()) {
                         is UiState.Loading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(color = Primary)
                         }
-                        is UiState.Empty -> EmptyState(icon = Icons.Outlined.LocalOffer, title = "Belum ada voucher", message = "Anda belum mengklaim voucher. Tekan tombol + Tambah di atas.")
+                        is UiState.Empty -> EmptyState(icon = Icons.Outlined.LocalOffer, title = "Belum ada hadiah", message = "Katalog hadiah kosong.")
                         is UiState.Error -> EmptyState(icon = Icons.Outlined.ErrorOutline, title = "Gagal memuat", message = s.message, isError = true, onRetry = { vm.load() })
                         is UiState.Success -> {
                             Column(
@@ -162,11 +146,14 @@ fun TukarPoinScreen(vm: TukarPoinViewModel = viewModel()) {
                             ) {
                                 s.data.chunked(2).forEach { row ->
                                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        row.forEach { userVoucher ->
-                                            RewardCard(
-                                                userVoucher = userVoucher,
-                                                modifier  = Modifier.weight(1f),
-                                                onClick = { selectedVoucher = userVoucher }
+                                        row.forEach { reward ->
+                                            RewardCardItem(
+                                                reward = reward,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    selectedReward = reward
+                                                    showConfirmDialog = true
+                                                }
                                             )
                                         }
                                         if (row.size == 1) Spacer(Modifier.weight(1f))
@@ -179,73 +166,44 @@ fun TukarPoinScreen(vm: TukarPoinViewModel = viewModel()) {
             }
         }
 
-        // PENTING: Meletakkan SnackbarHost di dalam Box agar bisa melayang di atas konten screen
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
         )
 
-        if (showDialog) {
+        if (showConfirmDialog && selectedReward != null) {
             AlertDialog(
-                onDismissRequest = { showDialog = false; inputKode = "" },
-                title = { Text("Tambah Voucher") },
-                text = {
-                    OutlinedTextField(
-                        value = inputKode,
-                        onValueChange = { inputKode = it },
-                        label = { Text("Kode Voucher") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
+                onDismissRequest = { showConfirmDialog = false },
+                title = { Text("Konfirmasi Penukaran") },
+                text = { Text("Tukar ${selectedReward!!.poinDiperlukan} poin dengan ${selectedReward!!.nama}?") },
                 confirmButton = {
                     Button(
-                        onClick = { vm.klaim(inputKode) },
-                        enabled = inputKode.isNotBlank() && klaimState !is UiState.Loading
+                        onClick = { vm.tukarPoin(selectedReward!!.id, selectedReward!!.poinDiperlukan) },
+                        enabled = tukarState !is UiState.Loading
                     ) {
-                        if (klaimState is UiState.Loading) {
+                        if (tukarState is UiState.Loading) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                         } else {
-                            Text("Klaim")
+                            Text("Ya, Tukar")
                         }
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDialog = false; inputKode = "" }) {
+                    TextButton(onClick = { showConfirmDialog = false }) {
                         Text("Batal")
                     }
                 }
             )
         }
-
-        // Bottom Sheet untuk detail voucher
-        if (selectedVoucher != null) {
-            ModalBottomSheet(
-                onDismissRequest = { selectedVoucher = null },
-                sheetState = sheetState,
-                containerColor = Color.White,
-                scrimColor = Color.Black.copy(alpha = 0.32f)
-            ) {
-                VoucherDetailSheet(
-                    userVoucher = selectedVoucher!!,
-                    onDismiss = { selectedVoucher = null },
-                    onGunakan = { vm.gunakan(selectedVoucher!!.id) },
-                    gunakanState = gunakanState
-                )
-            }
-        }
     }
 }
 
 @Composable
-private fun RewardCard(
-    userVoucher: UserVoucher,
+private fun RewardCardItem(
+    reward: Reward,
     modifier: Modifier,
     onClick: () -> Unit = {}
 ) {
-    val voucher = userVoucher.voucher
-    if (voucher == null) return
-
     val iconBg = Secondary.copy(alpha = 0.1f)
     val iconColor = Secondary
 
@@ -263,34 +221,27 @@ private fun RewardCard(
                     imageVector = Icons.Outlined.LocalOffer,
                     contentDescription = null, tint = iconColor, modifier = Modifier.size(44.dp)
                 )
-                // Badge diskon
-                Box(
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).clip(CircleShape).background(Secondary).padding(horizontal = 6.dp, vertical = 3.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Icon(Icons.Filled.Stars, contentDescription = null, tint = Color(0xFF2a1700), modifier = Modifier.size(11.dp))
-                        val textDiskon = if (voucher.tipeDiskon.equals("persen", ignoreCase = true)) "${voucher.nilaiDiskon.toInt()}%" else "Rp %,d".format(voucher.nilaiDiskon.toInt())
-                        Text(textDiskon, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2a1700))
-                    }
-                }
             }
             Column(modifier = Modifier.padding(10.dp)) {
-                Text(voucher.nama, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = OnSurface, maxLines = 2, lineHeight = 18.sp)
-                if (voucher.deskripsi.isNotEmpty()) {
+                Text(reward.nama, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = OnSurface, maxLines = 2, lineHeight = 18.sp)
+                if (reward.deskripsi.isNotEmpty()) {
                     Spacer(Modifier.height(2.dp))
-                    Text(voucher.deskripsi, fontSize = 11.sp, color = OnSurfaceVariant, maxLines = 2)
+                    Text(reward.deskripsi, fontSize = 11.sp, color = OnSurfaceVariant, maxLines = 2)
                 }
                 Spacer(Modifier.height(4.dp))
-                Text("Status: ${userVoucher.status}", fontSize = 11.sp, color = if (userVoucher.status == "belum_digunakan") Primary else Error)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Stars, contentDescription = null, tint = Color(0xFFFCAA33), modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("${reward.poinDiperlukan} Poin", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFCAA33))
+                }
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick  = { onClick() },
-                    enabled  = userVoucher.status == "belum_digunakan",
                     modifier = Modifier.fillMaxWidth().height(36.dp),
                     shape    = CircleShape,
                     colors   = ButtonDefaults.buttonColors(containerColor = Primary)
                 ) {
-                    Text(if (userVoucher.status == "belum_digunakan") "Lihat Detail" else "Terpakai", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Tukar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

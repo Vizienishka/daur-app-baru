@@ -481,6 +481,61 @@ object SupabaseClient {
         return post("/penukaran_poin", body, token).map { }
     }
 
+    suspend fun getPenukaranPoin(
+        userId: String,
+        token: String? = null
+    ): Result<List<PenukaranPoin>> {
+        val params = mutableMapOf(
+            "user_id" to "eq.$userId",
+            "select" to "*,reward(*)",
+            "order" to "created_at.desc"
+        )
+        return get("/penukaran_poin", token, params).map { json ->
+            JSONArray(json).toList { it.toPenukaranPoin() }
+        }
+    }
+
+    suspend fun hapusPenukaranPoin(
+        penukaranPoinId: String,
+        token: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val effectiveToken = token.takeIf { it.isNotBlank() } ?: ANON_KEY
+            val url = URL("$BASE_URL/rest/v1/rpc/delete_penukaran_poin")
+            val body = JSONObject().put("p_penukaran_id", penukaranPoinId).toString()
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                setRequestProperty("apikey", ANON_KEY)
+                setRequestProperty("Authorization", "Bearer $effectiveToken")
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                outputStream.write(body.toByteArray())
+            }
+            val code = conn.responseCode
+            val resp = try {
+                conn.inputStream.bufferedReader().readText()
+            } catch (_: Exception) {
+                conn.errorStream?.bufferedReader()?.readText() ?: ""
+            }
+            conn.disconnect()
+            if (code in 200..299) {
+                Result.success(Unit)
+            } else {
+                val msg = when (code) {
+                    401  -> { SessionManager.notifySessionExpired(); "Sesi habis, silakan login ulang" }
+                    403  -> "Akses ditolak via RPC"
+                    404  -> "Fungsi/Data tidak ditemukan"
+                    else -> "Gagal menghapus (kode: $code): $resp"
+                }
+                Result.failure(Exception(msg))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception(networkError(e)))
+        }
+    }
+
     // ── EDUKASI ────────────────────────────────────────────
     suspend fun getEdukasi(
         token: String? = null,
@@ -597,4 +652,15 @@ private fun JSONObject.toUserVoucher() = UserVoucher(
     digunakanPada = optString("digunakan_pada").takeIf { it != "null" } ?: "",
     createdAt     = optString("created_at"),
     voucher       = if (has("voucher") && !isNull("voucher")) getJSONObject("voucher").toVoucher() else null
+)
+
+private fun JSONObject.toPenukaranPoin() = PenukaranPoin(
+    id            = optString("id"),
+    userId        = optString("user_id"),
+    rewardId      = optString("reward_id"),
+    kodeTukar     = optString("kode_tukar"),
+    poinDigunakan = optInt("poin_digunakan", 0),
+    status        = optString("status"),
+    createdAt     = optString("created_at"),
+    reward        = if (has("reward") && !isNull("reward")) getJSONObject("reward").toReward() else null
 )
