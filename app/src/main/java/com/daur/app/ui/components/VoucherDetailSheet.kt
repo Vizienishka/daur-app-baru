@@ -17,19 +17,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.daur.app.model.UserVoucher
+import com.daur.app.model.PenukaranPoin
 import com.daur.app.ui.theme.*
 import com.daur.app.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoucherDetailSheet(
-    userVoucher: UserVoucher,
+    penukaranPoin: PenukaranPoin,
     onDismiss: () -> Unit,
     onGunakan: () -> Unit,
     gunakanState: UiState<Unit>?
 ) {
-    val voucher = userVoucher.voucher ?: return
+    val reward = penukaranPoin.reward ?: return
     val isLoading = gunakanState is UiState.Loading
 
     Surface(
@@ -76,9 +76,9 @@ fun VoucherDetailSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Nama voucher
+            // Nama voucher / hadiah
             Text(
-                voucher.nama,
+                reward.nama,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = OnSurface
@@ -87,9 +87,9 @@ fun VoucherDetailSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Deskripsi
-            if (voucher.deskripsi.isNotEmpty()) {
+            if (reward.deskripsi.isNotEmpty()) {
                 Text(
-                    voucher.deskripsi,
+                    reward.deskripsi,
                     fontSize = 14.sp,
                     color = OnSurfaceVariant,
                     lineHeight = 20.sp
@@ -106,17 +106,10 @@ fun VoucherDetailSheet(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                DetailRow("Tipe Diskon", voucher.tipeDiskon.replaceFirstChar { it.uppercase() })
-                DetailRow(
-                    "Nilai Diskon",
-                    if (voucher.tipeDiskon.equals("persen", ignoreCase = true)) {
-                        "${voucher.nilaiDiskon.toInt()}%"
-                    } else {
-                        "Rp ${String.format("%.0f", voucher.nilaiDiskon)}"
-                    }
-                )
-                DetailRow("Kode", voucher.kode)
-                DetailRow("Status", userVoucher.status.replace("_", " ").replaceFirstChar { it.uppercase() })
+                DetailRow("Kategori", reward.kategori.replaceFirstChar { it.uppercase() })
+                DetailRow("Poin Digunakan", "${penukaranPoin.poinDigunakan} Poin")
+                DetailRow("Kode Tukar", penukaranPoin.kodeTukar)
+                DetailRow("Status", penukaranPoin.status.replaceFirstChar { it.uppercase() })
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -145,7 +138,7 @@ fun VoucherDetailSheet(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Gunakan & Hapus Voucher", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Gunakan Voucher", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
 

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.daur.app.model.PenukaranPoin
+import com.daur.app.ui.components.VoucherDetailSheet
 import com.daur.app.ui.theme.*
 import com.daur.app.viewmodel.MyVoucherViewModel
 import com.daur.app.viewmodel.UiState
@@ -36,11 +37,14 @@ fun MyVoucherScreen(
     val state by vm.state.collectAsState()
     val hapusState by vm.hapusState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var selectedVoucher by remember { mutableStateOf<PenukaranPoin?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(hapusState) {
         when (val s = hapusState) {
             is UiState.Success -> {
-                snackbarHostState.showSnackbar("Voucher berhasil ditandai sudah ditukar")
+                snackbarHostState.showSnackbar("Voucher berhasil digunakan")
+                selectedVoucher = null
                 vm.resetHapus()
             }
             is UiState.Error -> {
@@ -88,7 +92,7 @@ fun MyVoucherScreen(
                         items(s.data) { item ->
                             MyVoucherCard(
                                 penukaranPoin = item,
-                                onHapus = { vm.hapus(item.id) }
+                                onDetail = { selectedVoucher = item }
                             )
                         }
                     }
@@ -101,10 +105,29 @@ fun MyVoucherScreen(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
         )
     }
+
+    if (selectedVoucher != null) {
+        ModalBottomSheet(
+            onDismissRequest = { selectedVoucher = null },
+            sheetState = sheetState,
+            containerColor = Color.Transparent,
+            dragHandle = null
+        ) {
+            VoucherDetailSheet(
+                penukaranPoin = selectedVoucher!!,
+                onDismiss = { selectedVoucher = null },
+                onGunakan = { 
+                    vm.hapus(selectedVoucher!!.id)
+                    selectedVoucher = null
+                },
+                gunakanState = hapusState
+            )
+        }
+    }
 }
 
 @Composable
-fun MyVoucherCard(penukaranPoin: PenukaranPoin, onHapus: () -> Unit) {
+fun MyVoucherCard(penukaranPoin: PenukaranPoin, onDetail: () -> Unit) {
     val reward = penukaranPoin.reward ?: return
 
     Card(
@@ -142,11 +165,11 @@ fun MyVoucherCard(penukaranPoin: PenukaranPoin, onHapus: () -> Unit) {
             }
             HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
             TextButton(
-                onClick = onHapus,
+                onClick = onDetail,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = Error)
+                colors = ButtonDefaults.textButtonColors(contentColor = Primary)
             ) {
-                Text("Sudah Ditukar", fontWeight = FontWeight.Bold)
+                Text("Lihat Detail", fontWeight = FontWeight.Bold)
             }
         }
     }
