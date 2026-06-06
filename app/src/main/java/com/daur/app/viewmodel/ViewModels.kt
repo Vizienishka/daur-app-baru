@@ -442,3 +442,64 @@ class EdukasiViewModel : ViewModel() {
         _state.value = if (filtered.isEmpty()) UiState.Empty else UiState.Success(filtered)
     }
 }
+
+// ──────────────────────────────────────────────────────────
+// KOMENTAR VIEW MODEL
+// ──────────────────────────────────────────────────────────
+class KomentarViewModel : ViewModel() {
+    private val _state = MutableStateFlow<UiState<List<Komentar>>>(UiState.Loading)
+    val state: StateFlow<UiState<List<Komentar>>> = _state.asStateFlow()
+
+    private val _addState = MutableStateFlow<UiState<Unit>?>(null)
+    val addState: StateFlow<UiState<Unit>?> = _addState.asStateFlow()
+
+    private val _deleteState = MutableStateFlow<UiState<Unit>?>(null)
+    val deleteState: StateFlow<UiState<Unit>?> = _deleteState.asStateFlow()
+
+    private var currentEdukasiId: String = ""
+
+    fun load(edukasiId: String) {
+        currentEdukasiId = edukasiId
+        viewModelScope.launch {
+            _state.value = UiState.Loading
+            SupabaseClient.getKomentar(edukasiId, SessionManager.accessToken)
+                .onSuccess { _state.value = if (it.isEmpty()) UiState.Empty else UiState.Success(it) }
+                .onFailure { _state.value = UiState.Error(it.message ?: "Gagal memuat komentar") }
+        }
+    }
+
+    fun addKomentar(isi: String) {
+        val userId = SessionManager.userId
+        val token  = SessionManager.accessToken
+        if (userId.isEmpty() || isi.isBlank()) return
+
+        viewModelScope.launch {
+            _addState.value = UiState.Loading
+            SupabaseClient.addKomentar(currentEdukasiId, userId, isi.trim(), token)
+                .onSuccess { newKomentar ->
+                    // Optimistic: sisipkan komentar baru ke list lokal
+                    val current = (_state.value as? UiState.Success)?.data ?: emptyList()
+                    _state.value = UiState.Success(current + newKomentar)
+                    _addState.value = UiState.Success(Unit)
+                }
+                .onFailure { _addState.value = UiState.Error(it.message ?: "Gagal mengirim komentar") }
+        }
+    }
+
+    fun deleteKomentar(komentarId: String) {
+        viewModelScope.launch {
+            _deleteState.value = UiState.Loading
+            SupabaseClient.deleteKomentar(komentarId, SessionManager.accessToken)
+                .onSuccess {
+                    val current = (_state.value as? UiState.Success)?.data ?: emptyList()
+                    val updated = current.filter { it.id != komentarId }
+                    _state.value = if (updated.isEmpty()) UiState.Empty else UiState.Success(updated)
+                    _deleteState.value = UiState.Success(Unit)
+                }
+                .onFailure { _deleteState.value = UiState.Error(it.message ?: "Gagal menghapus komentar") }
+        }
+    }
+
+    fun resetAddState()    { _addState.value    = null }
+    fun resetDeleteState() { _deleteState.value = null }
+}

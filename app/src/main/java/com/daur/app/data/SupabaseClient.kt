@@ -423,7 +423,7 @@ object SupabaseClient {
             put("voucher_id", voucher.id)
             put("status", "belum_digunakan")
         }.toString()
-        
+
         return post("/user_voucher", body, token).map { }
     }
 
@@ -578,6 +578,80 @@ object SupabaseClient {
         }
     }
 
+    // ── KOMENTAR ───────────────────────────────────────────
+    suspend fun getKomentar(edukasiId: String, token: String? = null): Result<List<com.daur.app.model.Komentar>> {
+        // Step 1: ambil komentar tanpa join profiles
+        val komentarResult = get(
+            "/komentar_edukasi", token,
+            mapOf(
+                "edukasi_id" to "eq.$edukasiId",
+                "select"     to "*",
+                "order"      to "created_at.asc"
+            )
+        )
+        if (komentarResult.isFailure) return Result.failure(komentarResult.exceptionOrNull()!!)
+
+        val arr = JSONArray(komentarResult.getOrThrow())
+        val komentarList = arr.toList { obj ->
+            com.daur.app.model.Komentar(
+                id        = obj.optString("id"),
+                edukasiId = obj.optString("edukasi_id"),
+                userId    = obj.optString("user_id"),
+                namaUser  = "Memuat...", // akan diisi di step 2
+                isi       = obj.optString("isi"),
+                createdAt = obj.optString("created_at")
+            )
+        }
+        if (komentarList.isEmpty()) return Result.success(emptyList())
+
+        // Step 2: kumpulkan unique user_id lalu ambil nama dari profiles
+        val uniqueUserIds = komentarList.map { it.userId }.distinct()
+        val inFilter = "(${uniqueUserIds.joinToString(",")})"
+        val namaMap = mutableMapOf<String, String>()
+
+        get(
+            "/profiles", token,
+            mapOf(
+                "id"     to "in.$inFilter",
+                "select" to "id,nama_lengkap"
+            )
+        ).onSuccess { json ->
+            val profArr = JSONArray(json)
+            for (i in 0 until profArr.length()) {
+                val p = profArr.getJSONObject(i)
+                namaMap[p.optString("id")] = p.optString("nama_lengkap").ifEmpty { "Pengguna" }
+            }
+        }
+
+        // Step 3: gabungkan nama ke list komentar
+        return Result.success(
+            komentarList.map { it.copy(namaUser = namaMap[it.userId] ?: "Pengguna") }
+        )
+    }
+
+    suspend fun addKomentar(
+        edukasiId: String,
+        userId: String,
+        isi: String,
+        token: String
+    ): Result<com.daur.app.model.Komentar> {
+        val body = JSONObject().apply {
+            put("edukasi_id", edukasiId)
+            put("user_id",    userId)
+            put("isi",        isi)
+        }.toString()
+        return post("/komentar_edukasi", body, token).map { resp ->
+            JSONArray(resp).getJSONObject(0).toKomentar()
+        }
+    }
+
+    suspend fun deleteKomentar(komentarId: String, token: String): Result<Unit> {
+        return delete(
+            "/komentar_edukasi", token,
+            mapOf("id" to "eq.$komentarId")
+        )
+    }
+
     // ── Helper ─────────────────────────────────────────────
     private fun networkError(e: Exception) = when {
         e.message?.contains("Unable to resolve host") == true ||
@@ -691,4 +765,13 @@ private fun JSONObject.toPenukaranPoin() = PenukaranPoin(
     status        = optString("status"),
     createdAt     = optString("created_at"),
     reward        = if (has("reward") && !isNull("reward")) getJSONObject("reward").toReward() else null
-)
+)
+
+private fun JSONObject.toKomentar() = com.daur.app.model.Komentar(
+    id        = optString("id"),
+    edukasiId = optString("edukasi_id"),
+    userId    = optString("user_id"),
+    namaUser  = "Pengguna", // nama diisi manual di getKomentar
+    isi       = optString("isi"),
+    createdAt = optString("created_at")
+)

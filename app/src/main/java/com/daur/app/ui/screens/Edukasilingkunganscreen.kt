@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -21,13 +23,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.daur.app.data.SessionManager
 import com.daur.app.model.Edukasi
+import com.daur.app.model.Komentar
 import com.daur.app.ui.theme.*
 import com.daur.app.viewmodel.EdukasiViewModel
+import com.daur.app.viewmodel.KomentarViewModel
 import com.daur.app.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -213,12 +219,52 @@ fun EdukasiLingkunganScreen(
 fun EdukasiDetailScreen(
     edukasiId: String,
     navController: NavController,
-    vm: EdukasiViewModel = viewModel()
+    vm: EdukasiViewModel = viewModel(),
+    komentarVm: KomentarViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
+    val komentarState by komentarVm.state.collectAsState()
+    val addState by komentarVm.addState.collectAsState()
+
+    val currentUserId = SessionManager.userId
+    var inputKomentar by remember { mutableStateOf("") }
+    var showDeleteDialog by remember { mutableStateOf<Komentar?>(null) }
+
+    // Load komentar saat screen pertama kali dibuka
+    LaunchedEffect(edukasiId) {
+        komentarVm.load(edukasiId)
+    }
+
+    // Reset input setelah komentar berhasil dikirim
+    LaunchedEffect(addState) {
+        if (addState is UiState.Success) {
+            inputKomentar = ""
+            komentarVm.resetAddState()
+        }
+    }
 
     // Cari artikel dari state
     val edukasi = (state as? UiState.Success)?.data?.find { it.id == edukasiId }
+
+    // Dialog konfirmasi hapus komentar
+    showDeleteDialog?.let { komentar ->
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = null },
+            title = { Text("Hapus komentar?", fontWeight = FontWeight.SemiBold) },
+            text  = { Text("Komentar ini akan dihapus permanen.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        komentarVm.deleteKomentar(komentar.id)
+                        showDeleteDialog = null
+                    }
+                ) { Text("Hapus", color = Error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = null }) { Text("Batal") }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -287,17 +333,17 @@ fun EdukasiDetailScreen(
                             Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = Outline, modifier = Modifier.size(14.dp))
                             val tanggal = edukasi.createdAt.take(10).replace("-", "/").ifEmpty { "—" }
                             Text(tanggal, fontSize = 12.sp, color = Outline)
-                            
+
                             IconButton(onClick = { vm.toggleLike(edukasi.id) }, modifier = Modifier.size(24.dp)) {
                                 Icon(
-                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, 
-                                    contentDescription = "Like", 
-                                    tint = if (edukasi.isLiked) Error else Outline, 
+                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = "Like",
+                                    tint = if (edukasi.isLiked) Error else Outline,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
                             Text("${edukasi.totalLikes} Suka", fontSize = 12.sp, color = Outline)
-                            
+
                             Spacer(Modifier.width(4.dp))
                             // Estimasi baca
                             val wordCount = edukasi.konten.split(" ").size
@@ -340,6 +386,125 @@ fun EdukasiDetailScreen(
                     )
                 }
 
+                // ── Section Komentar ──────────────────────
+                item {
+                    Spacer(Modifier.height(24.dp))
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = OutlineVariant.copy(alpha = 0.3f))
+                    Spacer(Modifier.height(20.dp))
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
+                        val jumlah = (komentarState as? UiState.Success)?.data?.size ?: 0
+                        Text("Komentar ($jumlah)", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OnSurface)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+
+                // ── Input komentar ────────────────────────
+                item {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Avatar inisial user
+                        Box(
+                            modifier = Modifier.size(36.dp).clip(CircleShape).background(Primary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (currentUserId.isNotEmpty()) "U" else "?",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        OutlinedTextField(
+                            value = inputKomentar,
+                            onValueChange = { inputKomentar = it },
+                            placeholder = { Text("Tulis komentar...", color = Outline, fontSize = 14.sp) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(
+                                onSend = {
+                                    if (inputKomentar.isNotBlank()) komentarVm.addKomentar(inputKomentar)
+                                }
+                            ),
+                            trailingIcon = {
+                                val isSending = addState is UiState.Loading
+                                IconButton(
+                                    onClick = {
+                                        if (inputKomentar.isNotBlank() && !isSending)
+                                            komentarVm.addKomentar(inputKomentar)
+                                    },
+                                    enabled = inputKomentar.isNotBlank() && !isSending
+                                ) {
+                                    if (isSending) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Primary, strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(Icons.Filled.Send, contentDescription = "Kirim", tint = if (inputKomentar.isNotBlank()) Primary else Outline, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor      = Primary,
+                                unfocusedBorderColor    = OutlineVariant,
+                                focusedContainerColor   = Color.White,
+                                unfocusedContainerColor = Color.White
+                            )
+                        )
+                    }
+                    // Error kirim komentar
+                    if (addState is UiState.Error) {
+                        Text(
+                            text = (addState as UiState.Error).message,
+                            color = Error,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 64.dp, top = 4.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+
+                // ── Daftar komentar ───────────────────────
+                when (val ks = komentarState) {
+                    is UiState.Loading -> item {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Primary, strokeWidth = 2.dp)
+                        }
+                    }
+                    is UiState.Empty -> item {
+                        Text(
+                            text = "Belum ada komentar. Jadilah yang pertama!",
+                            fontSize = 13.sp,
+                            color = Outline,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                        )
+                    }
+                    is UiState.Error -> item {
+                        Text(
+                            text = "Gagal memuat komentar: ${ks.message}",
+                            fontSize = 13.sp,
+                            color = Error,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        )
+                    }
+                    is UiState.Success -> {
+                        items(ks.data, key = { it.id }) { komentar ->
+                            KomentarItem(
+                                komentar      = komentar,
+                                isOwner       = komentar.userId == currentUserId,
+                                onDeleteClick = { showDeleteDialog = komentar }
+                            )
+                        }
+                    }
+                }
+
                 // ── Tombol Kembali ────────────────────────
                 item {
                     Spacer(Modifier.height(24.dp))
@@ -353,6 +518,71 @@ fun EdukasiDetailScreen(
                         Spacer(Modifier.width(8.dp))
                         Text("Kembali ke Daftar", color = Primary, fontWeight = FontWeight.SemiBold)
                     }
+                }
+            }
+        }
+    }
+}
+
+// ── Komentar Item ──────────────────────────────────────────
+@Composable
+private fun KomentarItem(
+    komentar: Komentar,
+    isOwner: Boolean,
+    onDeleteClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        // Avatar inisial
+        Box(
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(Primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = komentar.namaUser.firstOrNull()?.uppercaseChar()?.toString() ?: "U",
+                color = Primary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            // Bubble komentar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp))
+                    .background(if (isOwner) Primary.copy(alpha = 0.07f) else SurfaceContainer)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                Column {
+                    Text(komentar.namaUser, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Primary)
+                    Spacer(Modifier.height(2.dp))
+                    Text(komentar.isi, fontSize = 14.sp, color = OnSurface, lineHeight = 20.sp)
+                }
+            }
+
+            // Waktu + tombol hapus
+            Row(
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val waktu = komentar.createdAt.take(10).replace("-", "/").ifEmpty { "—" }
+                Text(waktu, fontSize = 11.sp, color = Outline)
+                if (isOwner) {
+                    Text(
+                        text = "Hapus",
+                        fontSize = 11.sp,
+                        color = Error.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.clickable { onDeleteClick() }
+                    )
                 }
             }
         }
@@ -400,9 +630,9 @@ private fun FeaturedArtikelCard(edukasi: Edukasi, onClick: () -> Unit, onLikeCli
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = onLikeClick, modifier = Modifier.size(24.dp)) {
                                 Icon(
-                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, 
-                                    contentDescription = "Like", 
-                                    tint = if (edukasi.isLiked) Error else Outline, 
+                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = "Like",
+                                    tint = if (edukasi.isLiked) Error else Outline,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -461,9 +691,9 @@ private fun ArtikelCard(edukasi: Edukasi, onClick: () -> Unit, onLikeClick: () -
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = onLikeClick, modifier = Modifier.size(24.dp)) {
                                 Icon(
-                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, 
-                                    contentDescription = "Like", 
-                                    tint = if (edukasi.isLiked) Error else Outline, 
+                                    imageVector = if (edukasi.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = "Like",
+                                    tint = if (edukasi.isLiked) Error else Outline,
                                     modifier = Modifier.size(14.dp)
                                 )
                             }

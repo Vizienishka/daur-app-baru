@@ -35,6 +35,7 @@ fun MainScreen(onLogout: () -> Unit = {}) {
     val setorVm:   SetorViewModel     = viewModel()
     val hadiahVm:  TukarPoinViewModel = viewModel()
     val edukasiVm: EdukasiViewModel   = viewModel()
+    val komentarVm: KomentarViewModel = viewModel()
 
     // ── Observer: session expired → logout → login ────────
     LaunchedEffect(Unit) {
@@ -120,9 +121,9 @@ fun MainScreen(onLogout: () -> Unit = {}) {
                 val userPoin = (berandaState as? BerandaState.Success)?.data?.profile?.totalPoin ?: 0
                 TukarPoinScreen(
                     userPoin = userPoin,
-                    onNavigateToMyVoucher = { 
+                    onNavigateToMyVoucher = {
                         berandaVm.load()
-                        navController.navigate("my_voucher") 
+                        navController.navigate("my_voucher")
                     },
                     vm = hadiahVm
                 )
@@ -150,7 +151,9 @@ fun MainScreen(onLogout: () -> Unit = {}) {
                 val edukasiId = backStackEntry.arguments?.getString("edukasiId") ?: ""
                 EdukasiDetailScreen(
                     edukasiId     = edukasiId,
-                    navController = navController
+                    navController = navController,
+                    vm            = edukasiVm,
+                    komentarVm    = komentarVm
                 )
             }
             composable("profil") {

@@ -101,6 +101,16 @@ data class Voucher(
     val updatedAt: String = ""
 )
 
+// ── Komentar (tabel: komentar_edukasi) ───────────────────────
+data class Komentar(
+    val id: String = "",
+    val edukasiId: String = "",
+    val userId: String = "",
+    val namaUser: String = "",
+    val isi: String = "",
+    val createdAt: String = ""
+)
+
 // ── User Voucher (tabel: user_voucher) ───────────────────────
 data class UserVoucher(
     val id: String = "",
@@ -111,4 +121,3 @@ data class UserVoucher(
     val createdAt: String = "",
     val voucher: Voucher? = null
 )
-
